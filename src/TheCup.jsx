@@ -24,11 +24,9 @@ const OWNER_KEY = "letmein"; // ← change this to your own password
 
 const STORE_KEY = "thecup.predictions.v1";
 const RESULTS_KEY = "thecup.results.v1";
-const GROUPS_KEY = "thecup.groups.v1";
 
 let _mem = {};
 let _memResults = {};
-let _memGroups = null;
 function makeStore(key, memRef){
   return {
     load(){
@@ -47,7 +45,6 @@ function makeStore(key, memRef){
 }
 const store = makeStore(STORE_KEY, { get value(){return _mem;}, set value(v){_mem=v;} });
 const resultsStore = makeStore(RESULTS_KEY, { get value(){return _memResults;}, set value(v){_memResults=v;} });
-const groupsStore = makeStore(GROUPS_KEY, { get value(){return _memGroups;}, set value(v){_memGroups=v;} });
 
 // ── reference data ───────────────────────────────────────────
 const FLAG = {
@@ -199,6 +196,9 @@ function computeGroups(scores){
   return out;
 }
 
+// Groups computed once from verified official scores — immutable, no state needed.
+const GROUPS = computeGroups(GROUP_SCORES_BASE);
+
 const RESULTS = [
   ["JOR",1,"ARG",3,"Group J · Jun 27"],
   ["DZA",3,"AUT",3,"Group J · Jun 27"],
@@ -339,68 +339,148 @@ function BracketSlot({ m, results }){
 }
 
 // ── Prediction card ──────────────────────────────────────────
-// Bracket-style prediction match
-function PredMatch({ m, pick, onPick, results, right }){
-  const { a, b, ready } = teamsOf(m);
-  const result = resultOf(m, results);
+// ── Full progressive bracket prediction system ──────────────
+
+// All 31 knockout matches with bracket tree structure.
+// `feeds` = the two upstream match IDs whose winners play here.
+const BRACKET_MATCHES = {
+  // Round of 32
+  M73:{id:"M73",round:"R32",home:"RSA",away:"CAN",date:"Jun 28 · 3pm ET"},
+  M74:{id:"M74",round:"R32",home:"BRA",away:"JPN",date:"Jun 29 · 1pm ET"},
+  M75:{id:"M75",round:"R32",home:"GER",away:"PAR",date:"Jun 29 · 4:30pm ET"},
+  M76:{id:"M76",round:"R32",home:"NED",away:"MAR",date:"Jun 29 · 9pm ET"},
+  M77:{id:"M77",round:"R32",home:"CIV",away:"NOR",date:"Jun 30 · 1pm ET"},
+  M78:{id:"M78",round:"R32",home:"FRA",away:"SWE",date:"Jun 30 · 5pm ET"},
+  M79:{id:"M79",round:"R32",home:"MEX",away:"ECU",date:"Jun 30 · 9pm ET"},
+  M80:{id:"M80",round:"R32",home:"ENG",away:"COD",date:"Jul 1 · 12pm ET"},
+  M81:{id:"M81",round:"R32",home:"BEL",away:"SEN",date:"Jul 1 · 4pm ET"},
+  M82:{id:"M82",round:"R32",home:"USA",away:"BIH",date:"Jul 1 · 8pm ET"},
+  M83:{id:"M83",round:"R32",home:"ESP",away:"AUT",date:"Jul 3 · 2pm ET"},
+  M84:{id:"M84",round:"R32",home:"POR",away:"CRO",date:"Jul 2 · 7pm ET"},
+  M85:{id:"M85",round:"R32",home:"SUI",away:"DZA",date:"Jul 2 · 11pm ET"},
+  M86:{id:"M86",round:"R32",home:"AUS",away:"EGY",date:"Jul 3 · 2pm ET"},
+  M87:{id:"M87",round:"R32",home:"ARG",away:"CPV",date:"Jul 3 · 6pm ET"},
+  M88:{id:"M88",round:"R32",home:"COL",away:"GHA",date:"Jul 3 · 9:30pm ET"},
+  // Round of 16
+  "R16-1":{id:"R16-1",round:"R16",feeds:["M73","M76"],date:"Jul 4 · 1pm ET"},
+  "R16-2":{id:"R16-2",round:"R16",feeds:["M75","M78"],date:"Jul 4 · 5pm ET"},
+  "R16-3":{id:"R16-3",round:"R16",feeds:["M74","M77"],date:"Jul 5 · 4pm ET"},
+  "R16-4":{id:"R16-4",round:"R16",feeds:["M79","M80"],date:"Jul 5 · 8pm ET"},
+  "R16-5":{id:"R16-5",round:"R16",feeds:["M83","M84"],date:"Jul 6 · 3pm ET"},
+  "R16-6":{id:"R16-6",round:"R16",feeds:["M81","M82"],date:"Jul 6 · 8pm ET"},
+  "R16-7":{id:"R16-7",round:"R16",feeds:["M86","M87"],date:"Jul 7 · 12pm ET"},
+  "R16-8":{id:"R16-8",round:"R16",feeds:["M85","M88"],date:"Jul 7 · 4pm ET"},
+  // Quarter-finals
+  "QF1":{id:"QF1",round:"QF",feeds:["R16-1","R16-2"],date:"Jul 9 · 4pm ET"},
+  "QF2":{id:"QF2",round:"QF",feeds:["R16-3","R16-4"],date:"Jul 10 · 3pm ET"},
+  "QF3":{id:"QF3",round:"QF",feeds:["R16-5","R16-6"],date:"Jul 11 · 5pm ET"},
+  "QF4":{id:"QF4",round:"QF",feeds:["R16-7","R16-8"],date:"Jul 11 · 9pm ET"},
+  // Semi-finals
+  "SF1":{id:"SF1",round:"SF",feeds:["QF1","QF2"],date:"Jul 14 · 3pm ET"},
+  "SF2":{id:"SF2",round:"SF",feeds:["QF3","QF4"],date:"Jul 15 · 3pm ET"},
+  // Final
+  "FINAL":{id:"FINAL",round:"Final",feeds:["SF1","SF2"],date:"Jul 19 · 3pm ET"},
+};
+
+const ROUNDS = [
+  {label:"Round of 32", ids:["M73","M74","M75","M76","M77","M78","M79","M80","M81","M82","M83","M84","M85","M86","M87","M88"]},
+  {label:"Round of 16", ids:["R16-1","R16-2","R16-3","R16-4","R16-5","R16-6","R16-7","R16-8"]},
+  {label:"Quarter-finals", ids:["QF1","QF2","QF3","QF4"]},
+  {label:"Semi-finals", ids:["SF1","SF2"]},
+  {label:"Final 🏆", ids:["FINAL"]},
+];
+
+// Resolve which team code sits in a slot for a given match.
+// side = "home" | "away" → maps to which feed (0 or 1).
+// Uses real results first, then user picks, then null.
+function resolveTeam(matchId, side, allPicks, allResults){
+  const m = BRACKET_MATCHES[matchId];
+  if(!m) return null;
+  // R32 matches have hardcoded teams
+  if(m.round === "R32") return side==="home" ? m.home : m.away;
+  // Later rounds: look up who won the upstream match
+  const feedId = m.feeds[side==="home"?0:1];
+  const feedM = BRACKET_MATCHES[feedId];
+  if(!feedM) return null;
+  // Get real result or user pick for the feed match
+  const realResult = allResults && allResults[feedId];
+  const userPick = allPicks && allPicks[feedId];
+  const outcome = realResult || userPick;
+  if(!outcome) return null;
+  const homeWon = outcome.hs > outcome.as;
+  const awayWon = outcome.as > outcome.hs;
+  // Resolve which team won that feed match
+  const feedHome = resolveTeam(feedId, "home", allPicks, allResults);
+  const feedAway = resolveTeam(feedId, "away", allPicks, allResults);
+  if(homeWon) return feedHome;
+  if(awayWon) return feedAway;
+  return null; // draw — no winner determined (shouldn't happen in knockouts)
+}
+
+// Get a real result for a match (knockouts only entered via owner mode for R32;
+// later rounds TBD). Checks allResults by matchId.
+function knockoutResult(matchId, allResults){
+  return allResults?.[matchId] || null;
+}
+
+// One bracket match cell
+function BracketCell({ matchId, allPicks, onPick, allResults }){
+  const m = BRACKET_MATCHES[matchId];
+  if(!m) return null;
+
+  const teamA = resolveTeam(matchId,"home",allPicks,allResults);
+  const teamB = resolveTeam(matchId,"away",allPicks,allResults);
+  const ready = !!(teamA && teamB);
+  const pick = allPicks?.[matchId];
+  const result = knockoutResult(matchId, allResults);
   const grade = gradePick(pick, result);
+
   const [ha,setHa]=useState(pick?.hs ?? "");
   const [aw,setAw]=useState(pick?.as ?? "");
 
-  const commit=(hs,as)=>{
-    if(hs===""||as==="") return;
-    const h=Math.max(0,parseInt(hs,10)||0),w=Math.max(0,parseInt(as,10)||0);
-    onPick(m.id,{hs:h,as:w,pickWinner:h>w?"a":w>h?"b":"draw"});
+  const commit=(h,a)=>{
+    if(h===""||a==="") return;
+    const hs=Math.max(0,parseInt(h,10)||0), as=Math.max(0,parseInt(a,10)||0);
+    onPick(matchId,{hs,as,pickWinner:hs>as?"home":as>hs?"away":"draw"});
   };
 
-  const aWin = result ? result.hs>result.as : (pick && pick.pickWinner==="a");
-  const bWin = result ? result.as>result.hs : (pick && pick.pickWinner==="b");
+  const predictedWinner = pick?.pickWinner;
+  const realWinner = result ? (result.hs>result.as?"home":result.as>result.hs?"away":null) : null;
 
-  if(!ready) return (
-    <div className="pm-wrap">
-      <div className="pm pm-tbd">
-        <div className="pm-row"><Seed s={m.a}/></div>
-        <div className="pm-row"><Seed s={m.b}/></div>
-        <div className="pm-date">{m.kickoff}</div>
-      </div>
-    </div>
-  );
+  const rowClass=(side)=>{
+    if(result) return realWinner===side?"pm-winner":"pm-loser";
+    if(pick) return predictedWinner===side?"pm-predicted":"";
+    return "";
+  };
 
   return (
-    <div className="pm-wrap">
-      <div className={`pm ${result?"pm-done":""} ${grade?.pts>0?"pm-hit":grade&&!grade.pts?"pm-miss":""}`}>
-        {/* Team A row */}
-        <div className={`pm-row ${result?(aWin?"pm-winner":"pm-loser"):(aWin?"pm-predicted":"")}`}>
-          <span className="pm-flag">{FLAG[a]}</span>
-          <span className="pm-name">{NAME[a]}</span>
+    <div className={`pm ${result?"pm-done":""} ${grade?.pts>0?"pm-hit":grade&&grade.pts===0?"pm-miss":""}`}>
+      {/* Team rows */}
+      {[["home",teamA,ha,setHa,aw],["away",teamB,aw,setAw,ha]].map(([side,code,val,setVal,other])=>(
+        <div key={side} className={`pm-row ${rowClass(side)}`}>
+          {code
+            ? <><span className="pm-flag">{FLAG[code]}</span><span className="pm-name">{NAME[code]}</span></>
+            : <span className="pm-tbd-team">?</span>
+          }
           {result
-            ? <span className="pm-score-final">{result.hs}</span>
-            : <input className="pm-input" inputMode="numeric" value={ha} placeholder="–"
-                onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setHa(v);commit(v,aw);}}
-                aria-label={`${NAME[a]} goals`}/>
+            ? <span className="pm-score-final">{side==="home"?result.hs:result.as}</span>
+            : ready
+              ? <input className="pm-input" inputMode="numeric" value={val} placeholder="–"
+                  onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setVal(v);
+                    commit(side==="home"?v:ha, side==="away"?v:aw);}}
+                  aria-label={`${code?NAME[code]:side} goals`}/>
+              : <span className="pm-score-final" style={{opacity:.3}}>–</span>
           }
         </div>
-        {/* Team B row */}
-        <div className={`pm-row ${result?(bWin?"pm-winner":"pm-loser"):(bWin?"pm-predicted":"")}`}>
-          <span className="pm-flag">{FLAG[b]}</span>
-          <span className="pm-name">{NAME[b]}</span>
-          {result
-            ? <span className="pm-score-final">{result.as}</span>
-            : <input className="pm-input" inputMode="numeric" value={aw} placeholder="–"
-                onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setAw(v);commit(ha,v);}}
-                aria-label={`${NAME[b]} goals`}/>
-          }
-        </div>
-        {/* Footer */}
-        <div className="pm-foot">
-          <span className="pm-date">{m.kickoff}</span>
-          {result && grade && (
-            grade.pts>0
-              ? <span className="pm-badge win">{grade.exact?"Exact +5":"Winner +3"}</span>
-              : <span className="pm-badge miss">Miss</span>
-          )}
-          {result && !pick && <span className="pm-badge">No pick</span>}
-        </div>
+      ))}
+      {/* Footer */}
+      <div className="pm-foot">
+        <span className="pm-date">{m.date}</span>
+        {result && grade && (grade.pts>0
+          ? <span className="pm-badge win">{grade.exact?"Exact +5":"Win +3"}</span>
+          : <span className="pm-badge miss">Miss</span>)}
+        {result && !pick && <span className="pm-badge">No pick</span>}
+        {!ready && !result && <span className="pm-badge" style={{opacity:.4}}>waiting</span>}
       </div>
     </div>
   );
@@ -438,111 +518,18 @@ function OwnerRow({ m, result, setResult }){
 }
 
 // One group match: enter the score, autosaves on change.
-function FixtureRow({ fixture, score, setGroupScore, base }){
-  const { home, away } = fixture;
-  const [hs,setHs]=useState(score?.hs ?? "");
-  const [as,setAs]=useState(score?.as ?? "");
-  const commit=(h,a)=>{
-    if(h===""||a===""){ if(h===""&&a==="") setGroupScore(fixture.id,null); return; }
-    setGroupScore(fixture.id,{ hs:Math.max(0,parseInt(h,10)||0), as:Math.max(0,parseInt(a,10)||0) });
-  };
-  const clear=()=>{ setHs(""); setAs(""); setGroupScore(fixture.id,null); };
-  const focusIdx=(n)=>{ const el=document.querySelector(`[data-fin="${n}"]`); if(el){ el.focus(); el.select?.(); } };
-  // Each match owns two input slots: base (home) and base+1 (away).
-  // Away advances to base+2 (next match's home).
-  return (
-    <div className={`frow ${score?"saved":""}`}>
-      <span className="f-team">{FLAG[home]} {NAME[home]}</span>
-      <input data-fin={base} className="oin" inputMode="numeric" value={hs}
-        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setHs(v);commit(v,as);
-          if(v!=="") focusIdx(base+1);}}
-        aria-label={`${NAME[home]} goals`}/>
-      <span className="odash">–</span>
-      <input data-fin={base+1} className="oin" inputMode="numeric" value={as}
-        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setAs(v);commit(hs,v);
-          if(v!=="") focusIdx(base+2);}}
-        onKeyDown={e=>{ if(e.key==="Enter") focusIdx(base+2); }}
-        aria-label={`${NAME[away]} goals`}/>
-      <span className="f-team right">{NAME[away]} {FLAG[away]}</span>
-      <button className="obtn clear" onClick={clear} disabled={!score}>✕</button>
-    </div>
-  );
-}
-
-
-// Compact live standings preview for a group (read-only)
-function MiniTable({ rows }){
-  return (
-    <div className="mini">
-      {rows.map((r,i)=>{
-        const [code,w,d,l,gf,ga,pts]=r; const gd=gf-ga;
-        return (
-          <div key={code} className={`mini-row ${i<2?"q":""}`}>
-            <span className="mini-pos">{i+1}</span>
-            <span className="mini-team">{FLAG[code]} {NAME[code]}</span>
-            <span className="mini-rec">{w}-{d}-{l}</span>
-            <span className="mini-gd">{gd>0?`+${gd}`:gd}</span>
-            <span className="mini-pts">{pts}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function OwnerPanel({ results, setResult, groups, groupScores, setGroupScore, resetGroups }){
-  const [section,setSection]=useState("knockout");
-  const [openGroup,setOpenGroup]=useState(null);
+function OwnerPanel({ results, setResult }){
   return (
     <main className="owner">
       <div className="owner-head">
         <h3>⚙ Owner</h3>
-        <p>Update results without touching code. Only you see this tab (it needs the secret link). Everything saves to this browser.</p>
-        <div className="owner-switch">
-          <button className={section==="knockout"?"on":""} onClick={()=>setSection("knockout")}>Knockout scores</button>
-          <button className={section==="groups"?"on":""} onClick={()=>setSection("groups")}>Group matches</button>
-        </div>
+        <p>Enter knockout results — bracket and predictions grade instantly. Only visible with the secret link.</p>
       </div>
-
-      {section==="knockout" && (
-        <div className="owner-list">
-          {R32.map(m=>(
-            <OwnerRow key={m.id} m={m} result={resultOf(m, results)} setResult={setResult}/>
-          ))}
-        </div>
-      )}
-
-      {section==="groups" && (() => {
-        const entered = GROUP_FIXTURES.filter(f=>groupScores[f.id]).length;
-        let idx = 0; // running index across all fixtures for focus chaining
-        return (
-        <div className="owner-groups">
-          <p className="og-hint">
-            Enter scores top-to-bottom — type home goals, it jumps to away, then to the next match. Standings update live.
-            <span className="og-prog">{entered} / {GROUP_FIXTURES.length} entered</span>
-            <button className="og-reset" onClick={resetGroups}>Clear all</button>
-          </p>
-          {Object.keys(GROUP_ROSTER).map(g=>(
-            <div key={g} className="og-block open">
-              <div className="og-label">Group {g}</div>
-              <div className="og-body">
-                <MiniTable rows={groups[g]}/>
-                <div className="og-fixtures">
-                  {GROUP_FIXTURES.filter(f=>f.group===g).map(f=>{
-                    const myIndex = idx++;
-                    return (
-                      <span key={f.id} id={`f-next-${myIndex-1}`} style={{display:"contents"}}>
-                        <FixtureRow fixture={f} score={groupScores[f.id]} setGroupScore={setGroupScore} index={myIndex}/>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        );
-      })()}
+      <div className="owner-list">
+        {R32.map(m=>(
+          <OwnerRow key={m.id} m={m} result={resultOf(m, results)} setResult={setResult}/>
+        ))}
+      </div>
     </main>
   );
 }
@@ -552,23 +539,12 @@ export default function TheCup(){
   const [tab,setTab]=useState("groups");
   const [picks,setPicks]=useState(()=>store.load());
   const [results,setResults]=useState(()=>resultsStore.load());
-  const [groupScores,setGroupScores]=useState(()=>({ ...GROUP_SCORES_BASE, ...(groupsStore.load()||{}) }));
   useEffect(()=>{ store.save(picks); },[picks]);
   useEffect(()=>{ resultsStore.save(results); },[results]);
-  useEffect(()=>{ groupsStore.save(groupScores); },[groupScores]);
-
-  const groups = useMemo(()=>computeGroups(groupScores),[groupScores]);
 
   // Owner mode unlocks when the URL has ?owner=OWNER_KEY
   const isOwner = typeof window!=="undefined" &&
     new URLSearchParams(window.location.search).get("owner")===OWNER_KEY;
-
-  const setGroupScore=(fixtureId,score)=>setGroupScores(prev=>{
-    const next={ ...prev };
-    if(score===null) delete next[fixtureId]; else next[fixtureId]=score;
-    return next;
-  });
-  const resetGroups=()=>setGroupScores({ ...GROUP_SCORES_BASE });
 
   const onPick=(id,p)=>setPicks(prev=>({ ...prev, [id]:p }));
   const setResult=(id,r)=>setResults(prev=>{
@@ -579,15 +555,13 @@ export default function TheCup(){
 
   const totals=useMemo(()=>{
     let pts=0, graded=0;
-    for(const m of R32){
-      const r=resultOf(m, results); if(!r) continue;
-      const g=gradePick(picks[m.id], r);
+    for(const id of Object.keys(BRACKET_MATCHES)){
+      const r=results?.[id]; if(!r) continue;
+      const g=gradePick(picks[id], r);
       if(g){ pts+=g.pts; graded++; }
     }
     return { pts, graded };
   },[picks, results]);
-
-  const left=R32.filter(m=>m.side==="L"), right=R32.filter(m=>m.side==="R");
 
   return (
     <div className="cup-root">
@@ -610,7 +584,7 @@ export default function TheCup(){
 
       {tab==="groups" && (
         <main className="groups-grid">
-          {Object.entries(groups).map(([l,rows])=><GroupCard key={l} letter={l} rows={rows}/>)}
+          {Object.entries(GROUPS).map(([l,rows])=><GroupCard key={l} letter={l} rows={rows}/>)}
         </main>
       )}
 
@@ -682,37 +656,32 @@ export default function TheCup(){
         <main className="predict">
           <div className="pred-head">
             <div>
-              <h3>Round of 32 predictions</h3>
-              <p>Pick a scoreline for each match — type goals and it saves instantly. <strong>Winner +3</strong>, <strong>exact score +5</strong>. Grades automatically as results come in.</p>
+              <h3>Predictions bracket</h3>
+              <p>Pick scores round by round — winners auto-advance. <strong>Winner +3</strong>, <strong>exact score +5</strong>.</p>
             </div>
             <div className="scoreboard">
               <span className="sb-pts">{totals.pts}</span>
-              <span className="sb-lbl">your points · {totals.graded} graded</span>
+              <span className="sb-lbl">pts · {totals.graded} graded</span>
             </div>
           </div>
-          <div className="pred-bracket">
-            <div className="pb-col pb-left">
-              {R32.filter(m=>m.side==="L").map(m=>(
-                <PredMatch key={m.id} m={m} pick={picks[m.id]} onPick={onPick} results={results}/>
-              ))}
-            </div>
-            <div className="pb-center">
-              <div className="pb-trophy">🏆</div>
-              <div className="pb-final-label">Final · Jul 19</div>
-              <div className="pb-final-venue">MetLife Stadium</div>
-            </div>
-            <div className="pb-col pb-right">
-              {R32.filter(m=>m.side==="R").map(m=>(
-                <PredMatch key={m.id} m={m} pick={picks[m.id]} onPick={onPick} results={results} right/>
-              ))}
-            </div>
+          <div className="pb-scroll">
+            {ROUNDS.map(({label,ids})=>(
+              <div key={label} className="pb-round">
+                <h4 className="pb-round-label">{label}</h4>
+                <div className="pb-matches">
+                  {ids.map(id=>(
+                    <BracketCell key={id} matchId={id}
+                      allPicks={picks} onPick={onPick} allResults={results}/>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </main>
       )}
 
       {tab==="owner" && isOwner && (
-        <OwnerPanel results={results} setResult={setResult}
-          groups={groups} groupScores={groupScores} setGroupScore={setGroupScore} resetGroups={resetGroups}/>
+        <OwnerPanel results={results} setResult={setResult}/>
       )}
 
       <footer className="cup-foot">
@@ -848,61 +817,40 @@ const CSS = `
 .sb-pts{display:block;font-family:var(--num);font-weight:800;font-size:38px;color:var(--gold);line-height:1}
 .sb-lbl{font-size:11px;color:var(--ink-300);text-transform:uppercase;letter-spacing:.05em}
 
-/* ── Predictions bracket ── */
-.pred-bracket{display:flex;gap:16px;align-items:flex-start;overflow-x:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch}
-.pb-col{flex:none;width:240px;display:flex;flex-direction:column;gap:10px}
-.pb-center{flex:none;width:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;align-self:center;padding:20px 0;gap:6px}
-.pb-trophy{font-size:40px}
-.pb-final-label{font-family:var(--display);font-weight:700;font-size:13px;color:var(--gold)}
-.pb-final-venue{font-size:11px;color:var(--ink-500)}
+/* ── Predictions progressive bracket ── */
+.pb-scroll{display:flex;gap:20px;overflow-x:auto;padding-bottom:16px;-webkit-overflow-scrolling:touch;align-items:flex-start}
+.pb-round{flex:none;width:220px;display:flex;flex-direction:column;gap:8px}
+.pb-round-label{font-family:var(--display);font-size:11px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--ink-500);margin:0 0 4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.pb-matches{display:flex;flex-direction:column;gap:10px}
 
-.pm-wrap{width:100%}
-.pm{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;
-  transition:border-color .15s}
+.pm{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:border-color .15s}
 .pm-done{border-color:rgba(244,201,93,.3)}
-.pm-hit{border-color:rgba(95,227,154,.45)}
-.pm-miss{border-color:rgba(255,77,77,.25)}
-.pm-tbd{opacity:.55}
-.pm-row{display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px;font-weight:600;
+.pm-hit{border-color:rgba(95,227,154,.45)!important}
+.pm-miss{border-color:rgba(255,77,77,.25)!important}
+.pm-row{display:flex;align-items:center;gap:7px;padding:8px 11px;font-size:13px;font-weight:600;
   color:var(--ink-300);border-bottom:1px solid var(--line)}
 .pm-row:last-of-type{border-bottom:none}
 .pm-winner{color:#5fe39a}
-.pm-loser{opacity:.5}
+.pm-loser{opacity:.45}
 .pm-predicted{color:var(--gold)}
 .pm-flag{font-style:normal;font-size:15px;flex:none}
 .pm-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pm-input{width:32px;height:30px;text-align:center;font-size:16px;font-weight:800;border-radius:6px;
-  background:var(--panel-2);border:1px solid var(--line);color:var(--ink-100);font-family:var(--num);
-  flex:none}
+.pm-tbd-team{flex:1;color:var(--ink-500);font-size:12px;font-style:italic}
+.pm-input{width:30px;height:28px;text-align:center;font-size:15px;font-weight:800;border-radius:6px;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink-100);font-family:var(--num);flex:none}
 .pm-input:focus{outline:none;border-color:var(--gold)}
-.pm-input::placeholder{color:var(--ink-500)}
-.pm-score-final{font-family:var(--num);font-weight:800;font-size:16px;flex:none;min-width:18px;text-align:center}
-.pm-foot{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;
-  background:rgba(0,0,0,.15)}
-.pm-date{font-size:10px;color:var(--ink-500);letter-spacing:.02em}
-.pm-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.pm-input::placeholder{color:var(--ink-500);font-size:12px}
+.pm-score-final{font-family:var(--num);font-weight:800;font-size:15px;flex:none;min-width:18px;text-align:right}
+.pm-foot{display:flex;align-items:center;justify-content:space-between;padding:5px 10px;background:rgba(0,0,0,.18)}
+.pm-date{font-size:10px;color:var(--ink-500)}
+.pm-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px}
 .pm-badge.win{background:rgba(95,227,154,.18);color:#5fe39a}
 .pm-badge.miss{background:rgba(255,77,77,.14);color:var(--can)}
-
+@media (min-width:1100px){.pb-round{width:240px}.mast-main h1{font-size:48px}.bcol{width:250px}.final-col{width:250px}.bracket-track{gap:56px}}
+@media (max-width:520px){.scores{grid-template-columns:1fr}.masthead,.groups-grid,.bracket-wrap,.predict{padding-left:0;padding-right:0}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 .cup-foot{text-align:center;color:var(--ink-500);font-size:11px;padding:20px;border-top:1px solid var(--line);margin-top:10px}
-@media (min-width:1100px){
-  .bcol{width:250px}
-  .final-col{width:250px}
-  .bracket-track{gap:56px}
-  .pb-col{width:270px}
-  .mast-main h1{font-size:48px}
-}
-@media (max-width:700px){
-  .pred-bracket{flex-direction:column}
-  .pb-col{width:100%}
-  .pb-center{flex-direction:row;width:100%;justify-content:flex-start;gap:12px;padding:8px 0}
-  .pb-trophy{font-size:28px}
-}
-@media (max-width:520px){
-  .scores{grid-template-columns:1fr}
-  .masthead,.groups-grid,.bracket-wrap,.predict{padding-left:0;padding-right:0}
-}
 .owner-tab{color:#ff9d4d!important;font-weight:700}
 .owner-tab.on{color:#ffb877!important}
 .owner{padding:24px 0}
@@ -927,43 +875,11 @@ const CSS = `
 .obtn.save:hover{filter:brightness(1.08)}
 .obtn.clear{background:none;color:var(--ink-300)}
 .obtn.clear:disabled{opacity:.3;cursor:default}
-.owner-switch{display:flex;gap:8px;margin-top:4px}
-.owner-switch button{background:var(--panel);border:1px solid var(--line);color:var(--ink-300);
-  font-size:13px;font-weight:700;padding:8px 14px;border-radius:20px;cursor:pointer}
-.owner-switch button.on{background:#ff9d4d;color:#2a1605;border-color:#ff9d4d}
-.owner-groups{margin-top:6px}
-.og-hint{font-size:13px;color:var(--ink-300);margin:0 0 16px}
-.og-hint b{color:var(--ink-100)}
-.og-reset{background:none;border:1px solid var(--line);color:var(--ink-300);font-size:11px;
-  padding:4px 10px;border-radius:14px;cursor:pointer;margin-left:8px;font-weight:600}
-.og-reset:hover{border-color:var(--can);color:var(--can)}
-.og-block{margin-bottom:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.og-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;
-  background:var(--panel);border:none;color:var(--ink-100);font-family:var(--display);font-weight:600;
-  font-size:15px;padding:12px 16px;cursor:pointer}
-.og-toggle:hover{background:var(--panel-2)}
-.og-caret{color:var(--ink-500)}
-.og-body{padding:12px 16px;background:rgba(0,0,0,.15)}
-.mini{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:10px}
-.mini-row{display:grid;grid-template-columns:18px 1fr auto 36px 26px;gap:8px;align-items:center;
-  font-size:12px;padding:3px 4px;color:var(--ink-300)}
-.mini-row.q{color:var(--ink-100)}
-.mini-pos{color:var(--ink-500);font-weight:700}
-.mini-row.q .mini-pos{color:var(--mex)}
-.mini-rec{font-variant-numeric:tabular-nums;color:var(--ink-500)}
-.mini-gd{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-500);font-size:11px}
-.mini-pts{text-align:right;font-weight:800;color:var(--ink-100)}
-.og-fixtures{display:flex;flex-direction:column;gap:6px}
-.frow{display:grid;grid-template-columns:1fr 40px 12px 40px 1fr auto;gap:8px;align-items:center}
-.frow.saved .f-team{color:var(--ink-100)}
-.f-team{font-size:12px;font-weight:600;color:var(--ink-300)}
-.f-team.right{text-align:right}
+.og-label{font-family:var(--display);font-weight:600;font-size:15px;color:var(--gold);padding:10px 14px;border-bottom:1px solid var(--line)}
 @media (max-width:640px){
   .orow{grid-template-columns:1fr 40px 10px 40px 1fr;row-gap:8px}
   .orow .obtn{grid-column:span 2}
   .obtn.clear{grid-column:span 3}
-  .frow{grid-template-columns:1fr 36px 10px 36px 1fr auto;gap:5px}
-  .f-team{font-size:11px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `;
