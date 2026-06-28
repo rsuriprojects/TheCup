@@ -72,42 +72,105 @@ const HOST = { MEX:"mex", CAN:"can", USA:"usa" };
 
 // Group standings — baseline data (Jun 27, 2026). Row: [code, W, D, L, GF, GA, Pts].
 // The Owner tab can override these; edits save per-browser and re-sort live.
-// Group rosters in seed order (positions 1-4 from the official draw).
+
+// Group rosters — order matches GROUP_FIXTURES home teams for display in Owner panel.
 const GROUP_ROSTER = {
   A:["MEX","RSA","KOR","CZE"],
-  B:["SUI","CAN","BIH","QAT"],
-  C:["BRA","MAR","SCO","HTI"],
-  D:["USA","AUS","PAR","TUR"],
-  E:["GER","CIV","ECU","CUW"],
+  B:["CAN","BIH","QAT","SUI"],
+  C:["BRA","MAR","HTI","SCO"],
+  D:["USA","PAR","AUS","TUR"],
+  E:["GER","CUW","CIV","ECU"],
   F:["NED","JPN","SWE","TUN"],
   G:["BEL","EGY","IRN","NZL"],
-  H:["ESP","CPV","URU","KSA"],
-  I:["FRA","NOR","SEN","IRQ"],
-  J:["ARG","AUT","DZA","JOR"],
-  K:["COL","POR","COD","UZB"],
+  H:["ESP","CPV","KSA","URU"],
+  I:["FRA","SEN","IRQ","NOR"],
+  J:["ARG","DZA","AUT","JOR"],
+  K:["POR","COD","UZB","COL"],
   L:["ENG","CRO","GHA","PAN"],
 };
 
-// Round-robin pairing pattern (0-indexed seed positions).
-const RR_PATTERN = [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
+// Fixtures in exact chronological order per group, home/away verified against official schedule.
+// Generated from Yahoo Sports / FIFA official match schedule.
+const GROUP_FIXTURES = [
+  // Group A
+  {id:"GA1",group:"A",home:"MEX",away:"RSA"},{id:"GA2",group:"A",home:"KOR",away:"CZE"},
+  {id:"GA3",group:"A",home:"MEX",away:"KOR"},{id:"GA4",group:"A",home:"CZE",away:"RSA"},
+  {id:"GA5",group:"A",home:"CZE",away:"MEX"},{id:"GA6",group:"A",home:"RSA",away:"KOR"},
+  // Group B
+  {id:"GB1",group:"B",home:"CAN",away:"BIH"},{id:"GB2",group:"B",home:"QAT",away:"SUI"},
+  {id:"GB3",group:"B",home:"SUI",away:"BIH"},{id:"GB4",group:"B",home:"CAN",away:"QAT"},
+  {id:"GB5",group:"B",home:"SUI",away:"CAN"},{id:"GB6",group:"B",home:"BIH",away:"QAT"},
+  // Group C
+  {id:"GC1",group:"C",home:"BRA",away:"MAR"},{id:"GC2",group:"C",home:"HTI",away:"SCO"},
+  {id:"GC3",group:"C",home:"SCO",away:"MAR"},{id:"GC4",group:"C",home:"BRA",away:"HTI"},
+  {id:"GC5",group:"C",home:"SCO",away:"BRA"},{id:"GC6",group:"C",home:"MAR",away:"HTI"},
+  // Group D
+  {id:"GD1",group:"D",home:"USA",away:"PAR"},{id:"GD2",group:"D",home:"AUS",away:"TUR"},
+  {id:"GD3",group:"D",home:"USA",away:"AUS"},{id:"GD4",group:"D",home:"TUR",away:"PAR"},
+  {id:"GD5",group:"D",home:"TUR",away:"USA"},{id:"GD6",group:"D",home:"PAR",away:"AUS"},
+  // Group E
+  {id:"GE1",group:"E",home:"GER",away:"CUW"},{id:"GE2",group:"E",home:"CIV",away:"ECU"},
+  {id:"GE3",group:"E",home:"GER",away:"CIV"},{id:"GE4",group:"E",home:"ECU",away:"CUW"},
+  {id:"GE5",group:"E",home:"ECU",away:"GER"},{id:"GE6",group:"E",home:"CUW",away:"CIV"},
+  // Group F
+  {id:"GF1",group:"F",home:"NED",away:"JPN"},{id:"GF2",group:"F",home:"SWE",away:"TUN"},
+  {id:"GF3",group:"F",home:"NED",away:"SWE"},{id:"GF4",group:"F",home:"TUN",away:"JPN"},
+  {id:"GF5",group:"F",home:"JPN",away:"SWE"},{id:"GF6",group:"F",home:"TUN",away:"NED"},
+  // Group G
+  {id:"GG1",group:"G",home:"BEL",away:"EGY"},{id:"GG2",group:"G",home:"IRN",away:"NZL"},
+  {id:"GG3",group:"G",home:"BEL",away:"IRN"},{id:"GG4",group:"G",home:"NZL",away:"EGY"},
+  {id:"GG5",group:"G",home:"NZL",away:"BEL"},{id:"GG6",group:"G",home:"EGY",away:"IRN"},
+  // Group H
+  {id:"GH1",group:"H",home:"ESP",away:"CPV"},{id:"GH2",group:"H",home:"KSA",away:"URU"},
+  {id:"GH3",group:"H",home:"ESP",away:"KSA"},{id:"GH4",group:"H",home:"URU",away:"CPV"},
+  {id:"GH5",group:"H",home:"CPV",away:"KSA"},{id:"GH6",group:"H",home:"URU",away:"ESP"},
+  // Group I
+  {id:"GI1",group:"I",home:"FRA",away:"SEN"},{id:"GI2",group:"I",home:"IRQ",away:"NOR"},
+  {id:"GI3",group:"I",home:"FRA",away:"IRQ"},{id:"GI4",group:"I",home:"NOR",away:"SEN"},
+  {id:"GI5",group:"I",home:"NOR",away:"FRA"},{id:"GI6",group:"I",home:"SEN",away:"IRQ"},
+  // Group J
+  {id:"GJ1",group:"J",home:"ARG",away:"DZA"},{id:"GJ2",group:"J",home:"AUT",away:"JOR"},
+  {id:"GJ3",group:"J",home:"ARG",away:"AUT"},{id:"GJ4",group:"J",home:"JOR",away:"DZA"},
+  {id:"GJ5",group:"J",home:"JOR",away:"ARG"},{id:"GJ6",group:"J",home:"DZA",away:"AUT"},
+  // Group K
+  {id:"GK1",group:"K",home:"POR",away:"COD"},{id:"GK2",group:"K",home:"UZB",away:"COL"},
+  {id:"GK3",group:"K",home:"POR",away:"UZB"},{id:"GK4",group:"K",home:"COL",away:"COD"},
+  {id:"GK5",group:"K",home:"COL",away:"POR"},{id:"GK6",group:"K",home:"COD",away:"UZB"},
+  // Group L
+  {id:"GL1",group:"L",home:"ENG",away:"CRO"},{id:"GL2",group:"L",home:"GHA",away:"PAN"},
+  {id:"GL3",group:"L",home:"ENG",away:"GHA"},{id:"GL4",group:"L",home:"PAN",away:"CRO"},
+  {id:"GL5",group:"L",home:"PAN",away:"ENG"},{id:"GL6",group:"L",home:"CRO",away:"GHA"},
+];
 
-// All 72 group fixtures: { id, group, home, away }.
-const GROUP_FIXTURES = (()=>{
-  const out = [];
-  for(const [g, teams] of Object.entries(GROUP_ROSTER)){
-    RR_PATTERN.forEach(([i,j],n)=>{
-      out.push({ id:`G${g}${n+1}`, group:g, home:teams[i], away:teams[j] });
-    });
-  }
-  return out;
-})();
+// All 72 group stage scores — verified Jun 28, 2026.
+// Computed standings match official Google/FIFA standings exactly (all 12 groups confirmed).
+const GROUP_SCORES_BASE = {
+  // Group A
+  GA1:{hs:2,as:0},GA2:{hs:2,as:1},GA3:{hs:1,as:0},GA4:{hs:1,as:1},GA5:{hs:0,as:3},GA6:{hs:1,as:0},
+  // Group B
+  GB1:{hs:1,as:1},GB2:{hs:1,as:1},GB3:{hs:4,as:1},GB4:{hs:6,as:0},GB5:{hs:2,as:1},GB6:{hs:2,as:0},
+  // Group C
+  GC1:{hs:1,as:1},GC2:{hs:0,as:1},GC3:{hs:0,as:1},GC4:{hs:4,as:1},GC5:{hs:0,as:2},GC6:{hs:3,as:0},
+  // Group D
+  GD1:{hs:4,as:1},GD2:{hs:2,as:0},GD3:{hs:2,as:0},GD4:{hs:0,as:1},GD5:{hs:3,as:2},GD6:{hs:0,as:0},
+  // Group E
+  GE1:{hs:7,as:1},GE2:{hs:1,as:0},GE3:{hs:2,as:1},GE4:{hs:1,as:1},GE5:{hs:2,as:1},GE6:{hs:0,as:2},
+  // Group F
+  GF1:{hs:2,as:2},GF2:{hs:5,as:1},GF3:{hs:3,as:1},GF4:{hs:0,as:1},GF5:{hs:1,as:1},GF6:{hs:1,as:3},
+  // Group G
+  GG1:{hs:1,as:1},GG2:{hs:2,as:2},GG3:{hs:0,as:0},GG4:{hs:1,as:3},GG5:{hs:1,as:5},GG6:{hs:1,as:1},
+  // Group H
+  GH1:{hs:0,as:0},GH2:{hs:1,as:1},GH3:{hs:2,as:0},GH4:{hs:1,as:1},GH5:{hs:0,as:0},GH6:{hs:0,as:1},
+  // Group I
+  GI1:{hs:3,as:1},GI2:{hs:1,as:4},GI3:{hs:4,as:0},GI4:{hs:3,as:2},GI5:{hs:1,as:4},GI6:{hs:5,as:0},
+  // Group J
+  GJ1:{hs:3,as:0},GJ2:{hs:3,as:1},GJ3:{hs:2,as:0},GJ4:{hs:1,as:2},GJ5:{hs:1,as:3},GJ6:{hs:3,as:3},
+  // Group K
+  GK1:{hs:1,as:1},GK2:{hs:1,as:3},GK3:{hs:5,as:0},GK4:{hs:1,as:0},GK5:{hs:0,as:0},GK6:{hs:3,as:1},
+  // Group L
+  GL1:{hs:4,as:2},GL2:{hs:1,as:0},GL3:{hs:0,as:0},GL4:{hs:0,as:1},GL5:{hs:0,as:2},GL6:{hs:2,as:1},
+};
 
-// Baseline group scores — intentionally EMPTY. Reconstructing exact
-// per-match scorelines from standings alone isn't reliable, so group
-// standings start blank and you enter the real scores in the Owner
-// tab; each entry computes the table live. Key = fixture id, value
-// = {hs,as} (home score, away score).
-const GROUP_SCORES_BASE = {};
 
 // Compute standings for all groups from a scores map.
 // Returns { A:[[code,W,D,L,GF,GA,Pts],...sorted], ... }
@@ -137,15 +200,24 @@ function computeGroups(scores){
 }
 
 const RESULTS = [
-  ["COD",3,"UZB",1,"Group K"],["COL",0,"POR",0,"Group K"],["CRO",2,"GHA",1,"Group L"],
-  ["PAN",0,"ENG",2,"Group L"],["EGY",1,"IRN",1,"Group G"],["NZL",1,"BEL",5,"Group G"],
-  ["CPV",0,"KSA",0,"Group H"],["URU",0,"ESP",1,"Group H"],["SEN",5,"IRQ",0,"Group I"],
-  ["NOR",1,"FRA",4,"Group I"],
+  ["JOR",1,"ARG",3,"Group J · Jun 27"],
+  ["DZA",3,"AUT",3,"Group J · Jun 27"],
+  ["COL",0,"POR",0,"Group K · Jun 27"],
+  ["COD",3,"UZB",1,"Group K · Jun 27"],
+  ["PAN",0,"ENG",2,"Group L · Jun 27"],
+  ["CRO",2,"GHA",1,"Group L · Jun 27"],
+  ["URU",0,"ESP",1,"Group H · Jun 26"],
+  ["CPV",0,"KSA",0,"Group H · Jun 26"],
+  ["NZL",1,"BEL",5,"Group G · Jun 26"],
+  ["EGY",1,"IRN",1,"Group G · Jun 26"],
 ];
 const UPCOMING = [
-  ["JOR","ARG","Sat Jun 27","Group J"],["DZA","AUT","Sat Jun 27","Group J"],
-  ["RSA","CAN","Sun Jun 28","Group A·B"],["BRA","JPN","Mon Jun 29","Group C·F"],
-  ["GER","PAR","Mon Jun 29","Group E·D"],["NED","MAR","Mon Jun 29","Group F·C"],
+  ["RSA","CAN","Sun Jun 28 · 3pm ET","R32"],
+  ["BRA","JPN","Mon Jun 29 · 1pm ET","R32"],
+  ["GER","PAR","Mon Jun 29 · 4:30pm ET","R32"],
+  ["NED","MAR","Mon Jun 29 · 9pm ET","R32"],
+  ["CIV","NOR","Tue Jun 30 · 1pm ET","R32"],
+  ["FRA","SWE","Tue Jun 30 · 5pm ET","R32"],
 ];
 
 // ── Round of 32 ──────────────────────────────────────────────
@@ -156,23 +228,23 @@ const UPCOMING = [
 // Matchups confirmed from the official bracket (Jun 27, 2026).
 const R32 = [
   // ── Left side ──
-  { id:"M73", side:"L", a:"1E", b:"2D", home:"GER", away:"PAR", kickoff:"Mon Jun 29" },
-  { id:"M74", side:"L", a:"1I", b:"2F", home:"FRA", away:"SWE", kickoff:"Tue Jun 30" },
-  { id:"M75", side:"L", a:"2A", b:"2B", home:"RSA", away:"CAN", kickoff:"Sun Jun 28" },
-  { id:"M76", side:"L", a:"1F", b:"2C", home:"NED", away:"MAR", kickoff:"Mon Jun 29" },
-  { id:"M77", side:"L", a:"2K", b:"2L", home:"POR", away:"CRO", kickoff:"Wed Jul 1" },
-  { id:"M78", side:"L", a:"1H", b:"TBD", home:"ESP", kickoff:"TBD" },           // opponent TBD
-  { id:"M79", side:"L", a:"1D", b:"2B2", home:"USA", away:"BIH", kickoff:"TBD" },
-  { id:"M80", side:"L", a:"1G", b:"2I", home:"BEL", away:"SEN", kickoff:"TBD" },
+  { id:"M73", side:"L", a:"2A", b:"2B", home:"RSA", away:"CAN", kickoff:"Sun Jun 28 · 3pm ET" },
+  { id:"M74", side:"L", a:"1C", b:"2F", home:"BRA", away:"JPN", kickoff:"Mon Jun 29 · 1pm ET" },
+  { id:"M75", side:"L", a:"1E", b:"3rd", home:"GER", away:"PAR", kickoff:"Mon Jun 29 · 4:30pm ET" },
+  { id:"M76", side:"L", a:"1F", b:"2C", home:"NED", away:"MAR", kickoff:"Mon Jun 29 · 9pm ET" },
+  { id:"M77", side:"L", a:"2E", b:"2I", home:"CIV", away:"NOR", kickoff:"Tue Jun 30 · 1pm ET" },
+  { id:"M78", side:"L", a:"1I", b:"3rd", home:"FRA", away:"SWE", kickoff:"Tue Jun 30 · 5pm ET" },
+  { id:"M79", side:"L", a:"1A", b:"3rd", home:"MEX", away:"ECU", kickoff:"Tue Jun 30 · 9pm ET" },
+  { id:"M80", side:"L", a:"1L", b:"3rd", home:"ENG", away:"COD", kickoff:"Wed Jul 1 · 12pm ET" },
   // ── Right side ──
-  { id:"M81", side:"R", a:"1C", b:"2F2", home:"BRA", away:"JPN", kickoff:"Mon Jun 29" },
-  { id:"M82", side:"R", a:"2E", b:"2I2", home:"CIV", away:"NOR", kickoff:"Tue Jun 30" },
-  { id:"M83", side:"R", a:"1A", b:"3?2", home:"MEX", away:"ECU", kickoff:"Tue Jun 30" },
-  { id:"M84", side:"R", a:"1L", b:"2K2", home:"ENG", away:"COD", kickoff:"Wed Jul 1" },
-  { id:"M85", side:"R", a:"1J", b:"2H", home:"ARG", away:"CPV", kickoff:"TBD" },
-  { id:"M86", side:"R", a:"2D2", b:"2G", home:"AUS", away:"EGY", kickoff:"TBD" },
-  { id:"M87", side:"R", a:"1B", b:"TBD", home:"SUI", kickoff:"TBD" },          // opponent TBD
-  { id:"M88", side:"R", a:"1K", b:"2L2", home:"COL", away:"GHA", kickoff:"TBD" },
+  { id:"M81", side:"R", a:"1G", b:"3rd", home:"BEL", away:"SEN", kickoff:"Wed Jul 1 · 4pm ET" },
+  { id:"M82", side:"R", a:"1D", b:"3rd", home:"USA", away:"BIH", kickoff:"Wed Jul 1 · 8pm ET" },
+  { id:"M83", side:"R", a:"1H", b:"2J", home:"ESP", away:"AUT", kickoff:"Thu Jul 3 · 2pm ET" },
+  { id:"M84", side:"R", a:"2K", b:"2L", home:"POR", away:"CRO", kickoff:"Thu Jul 2 · 7pm ET" },
+  { id:"M85", side:"R", a:"1B", b:"3rd", home:"SUI", away:"DZA", kickoff:"Thu Jul 2 · 11pm ET" },
+  { id:"M86", side:"R", a:"2D", b:"2G", home:"AUS", away:"EGY", kickoff:"Fri Jul 3 · 2pm ET" },
+  { id:"M87", side:"R", a:"1J", b:"2H", home:"ARG", away:"CPV", kickoff:"Fri Jul 3 · 6pm ET" },
+  { id:"M88", side:"R", a:"1K", b:"3rd", home:"COL", away:"GHA", kickoff:"Fri Jul 3 · 9:30pm ET" },
 ];
 
 const teamsOf = (m)=>({ a:m.home||null, b:m.away||null, ready:!!(m.home&&m.away) });
@@ -267,56 +339,69 @@ function BracketSlot({ m, results }){
 }
 
 // ── Prediction card ──────────────────────────────────────────
-function PredictionCard({ m, pick, onPick, results }){
+// Bracket-style prediction match
+function PredMatch({ m, pick, onPick, results, right }){
   const { a, b, ready } = teamsOf(m);
   const result = resultOf(m, results);
   const grade = gradePick(pick, result);
   const [ha,setHa]=useState(pick?.hs ?? "");
   const [aw,setAw]=useState(pick?.as ?? "");
 
-  if(!ready){
-    return (
-      <div className="pcard pending">
-        <div className="pcard-teams"><Seed s={m.a}/><span className="vs">vs</span><Seed s={m.b}/></div>
-        <p className="pwait">Locked until the group stage decides these slots.</p>
-      </div>
-    );
-  }
-
   const commit=(hs,as)=>{
-    if(hs==="" || as==="") return;
-    const h=Math.max(0,parseInt(hs,10)||0), w=Math.max(0,parseInt(as,10)||0);
-    const pickWinner = h>w?"a":w>h?"b":"draw";
-    onPick(m.id,{ hs:h, as:w, pickWinner });
+    if(hs===""||as==="") return;
+    const h=Math.max(0,parseInt(hs,10)||0),w=Math.max(0,parseInt(as,10)||0);
+    onPick(m.id,{hs:h,as:w,pickWinner:h>w?"a":w>h?"b":"draw"});
   };
 
-  return (
-    <div className={`pcard ${result?"played":""}`}>
-      <div className="pcard-top">
-        <TeamLabel code={a}/>
-        <div className="pscore">
-          <input className="sin" inputMode="numeric" value={ha} disabled={!!result}
-            onChange={e=>setHa(e.target.value.replace(/\D/g,"").slice(0,2))}
-            onBlur={e=>commit(e.target.value,aw)} aria-label={`${NAME[a]} score`}/>
-          <i>:</i>
-          <input className="sin" inputMode="numeric" value={aw} disabled={!!result}
-            onChange={e=>setAw(e.target.value.replace(/\D/g,"").slice(0,2))}
-            onBlur={e=>commit(ha,e.target.value)} aria-label={`${NAME[b]} score`}/>
-        </div>
-        <TeamLabel code={b} right/>
+  const aWin = result ? result.hs>result.as : (pick && pick.pickWinner==="a");
+  const bWin = result ? result.as>result.hs : (pick && pick.pickWinner==="b");
+
+  if(!ready) return (
+    <div className="pm-wrap">
+      <div className="pm pm-tbd">
+        <div className="pm-row"><Seed s={m.a}/></div>
+        <div className="pm-row"><Seed s={m.b}/></div>
+        <div className="pm-date">{m.kickoff}</div>
       </div>
-      {result ? (
-        <div className={`presult ${grade?.pts?"hit":"miss"}`}>
-          <span>Final {result.hs}–{result.as}</span>
-          {grade ? (
-            grade.pts>0
-              ? <span className="pbadge win">{grade.exact?"Exact score":"Winner"} +{grade.pts}</span>
-              : <span className="pbadge lose">No points</span>
-          ) : <span className="pbadge">No pick</span>}
+    </div>
+  );
+
+  return (
+    <div className="pm-wrap">
+      <div className={`pm ${result?"pm-done":""} ${grade?.pts>0?"pm-hit":grade&&!grade.pts?"pm-miss":""}`}>
+        {/* Team A row */}
+        <div className={`pm-row ${result?(aWin?"pm-winner":"pm-loser"):(aWin?"pm-predicted":"")}`}>
+          <span className="pm-flag">{FLAG[a]}</span>
+          <span className="pm-name">{NAME[a]}</span>
+          {result
+            ? <span className="pm-score-final">{result.hs}</span>
+            : <input className="pm-input" inputMode="numeric" value={ha} placeholder="–"
+                onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setHa(v);commit(v,aw);}}
+                aria-label={`${NAME[a]} goals`}/>
+          }
         </div>
-      ) : (
-        <div className="phint">{pick ? `Your pick: ${pick.hs}–${pick.as}` : "Enter a scoreline to lock your prediction"}</div>
-      )}
+        {/* Team B row */}
+        <div className={`pm-row ${result?(bWin?"pm-winner":"pm-loser"):(bWin?"pm-predicted":"")}`}>
+          <span className="pm-flag">{FLAG[b]}</span>
+          <span className="pm-name">{NAME[b]}</span>
+          {result
+            ? <span className="pm-score-final">{result.as}</span>
+            : <input className="pm-input" inputMode="numeric" value={aw} placeholder="–"
+                onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setAw(v);commit(ha,v);}}
+                aria-label={`${NAME[b]} goals`}/>
+          }
+        </div>
+        {/* Footer */}
+        <div className="pm-foot">
+          <span className="pm-date">{m.kickoff}</span>
+          {result && grade && (
+            grade.pts>0
+              ? <span className="pm-badge win">{grade.exact?"Exact +5":"Winner +3"}</span>
+              : <span className="pm-badge miss">Miss</span>
+          )}
+          {result && !pick && <span className="pm-badge">No pick</span>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -353,7 +438,7 @@ function OwnerRow({ m, result, setResult }){
 }
 
 // One group match: enter the score, autosaves on change.
-function FixtureRow({ fixture, score, setGroupScore }){
+function FixtureRow({ fixture, score, setGroupScore, base }){
   const { home, away } = fixture;
   const [hs,setHs]=useState(score?.hs ?? "");
   const [as,setAs]=useState(score?.as ?? "");
@@ -362,15 +447,21 @@ function FixtureRow({ fixture, score, setGroupScore }){
     setGroupScore(fixture.id,{ hs:Math.max(0,parseInt(h,10)||0), as:Math.max(0,parseInt(a,10)||0) });
   };
   const clear=()=>{ setHs(""); setAs(""); setGroupScore(fixture.id,null); };
+  const focusIdx=(n)=>{ const el=document.querySelector(`[data-fin="${n}"]`); if(el){ el.focus(); el.select?.(); } };
+  // Each match owns two input slots: base (home) and base+1 (away).
+  // Away advances to base+2 (next match's home).
   return (
     <div className={`frow ${score?"saved":""}`}>
       <span className="f-team">{FLAG[home]} {NAME[home]}</span>
-      <input className="oin" inputMode="numeric" value={hs}
-        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setHs(v);commit(v,as);}}
+      <input data-fin={base} className="oin" inputMode="numeric" value={hs}
+        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setHs(v);commit(v,as);
+          if(v!=="") focusIdx(base+1);}}
         aria-label={`${NAME[home]} goals`}/>
       <span className="odash">–</span>
-      <input className="oin" inputMode="numeric" value={as}
-        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setAs(v);commit(hs,v);}}
+      <input data-fin={base+1} className="oin" inputMode="numeric" value={as}
+        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setAs(v);commit(hs,v);
+          if(v!=="") focusIdx(base+2);}}
+        onKeyDown={e=>{ if(e.key==="Enter") focusIdx(base+2); }}
         aria-label={`${NAME[away]} goals`}/>
       <span className="f-team right">{NAME[away]} {FLAG[away]}</span>
       <button className="obtn clear" onClick={clear} disabled={!score}>✕</button>
@@ -421,31 +512,37 @@ function OwnerPanel({ results, setResult, groups, groupScores, setGroupScore, re
         </div>
       )}
 
-      {section==="groups" && (
+      {section==="groups" && (() => {
+        const entered = GROUP_FIXTURES.filter(f=>groupScores[f.id]).length;
+        let idx = 0; // running index across all fixtures for focus chaining
+        return (
         <div className="owner-groups">
-          <p className="og-hint">Enter each match score — standings compute automatically. Empty fields = not played yet. <button className="og-reset" onClick={resetGroups}>Reset to defaults</button></p>
-          {Object.keys(GROUP_ROSTER).map(g=>{
-            const open = openGroup===g;
-            return (
-              <div key={g} className="og-block">
-                <button className="og-toggle" onClick={()=>setOpenGroup(open?null:g)}>
-                  <span>Group {g}</span><span className="og-caret">{open?"▾":"▸"}</span>
-                </button>
-                {open && (
-                  <div className="og-body">
-                    <MiniTable rows={groups[g]}/>
-                    <div className="og-fixtures">
-                      {GROUP_FIXTURES.filter(f=>f.group===g).map(f=>(
-                        <FixtureRow key={f.id} fixture={f} score={groupScores[f.id]} setGroupScore={setGroupScore}/>
-                      ))}
-                    </div>
-                  </div>
-                )}
+          <p className="og-hint">
+            Enter scores top-to-bottom — type home goals, it jumps to away, then to the next match. Standings update live.
+            <span className="og-prog">{entered} / {GROUP_FIXTURES.length} entered</span>
+            <button className="og-reset" onClick={resetGroups}>Clear all</button>
+          </p>
+          {Object.keys(GROUP_ROSTER).map(g=>(
+            <div key={g} className="og-block open">
+              <div className="og-label">Group {g}</div>
+              <div className="og-body">
+                <MiniTable rows={groups[g]}/>
+                <div className="og-fixtures">
+                  {GROUP_FIXTURES.filter(f=>f.group===g).map(f=>{
+                    const myIndex = idx++;
+                    return (
+                      <span key={f.id} id={`f-next-${myIndex-1}`} style={{display:"contents"}}>
+                        <FixtureRow fixture={f} score={groupScores[f.id]} setGroupScore={setGroupScore} index={myIndex}/>
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
-      )}
+        );
+      })()}
     </main>
   );
 }
@@ -586,15 +683,29 @@ export default function TheCup(){
           <div className="pred-head">
             <div>
               <h3>Round of 32 predictions</h3>
-              <p>Call the scoreline for each tie. <strong>Winner +3</strong>, <strong>exact score +5</strong> (3 + 2 bonus). Picks grade themselves as results come in.</p>
+              <p>Pick a scoreline for each match — type goals and it saves instantly. <strong>Winner +3</strong>, <strong>exact score +5</strong>. Grades automatically as results come in.</p>
             </div>
             <div className="scoreboard">
               <span className="sb-pts">{totals.pts}</span>
               <span className="sb-lbl">your points · {totals.graded} graded</span>
             </div>
           </div>
-          <div className="pred-grid">
-            {R32.map(m=><PredictionCard key={m.id} m={m} pick={picks[m.id]} onPick={onPick} results={results}/>)}
+          <div className="pred-bracket">
+            <div className="pb-col pb-left">
+              {R32.filter(m=>m.side==="L").map(m=>(
+                <PredMatch key={m.id} m={m} pick={picks[m.id]} onPick={onPick} results={results}/>
+              ))}
+            </div>
+            <div className="pb-center">
+              <div className="pb-trophy">🏆</div>
+              <div className="pb-final-label">Final · Jul 19</div>
+              <div className="pb-final-venue">MetLife Stadium</div>
+            </div>
+            <div className="pb-col pb-right">
+              {R32.filter(m=>m.side==="R").map(m=>(
+                <PredMatch key={m.id} m={m} pick={picks[m.id]} onPick={onPick} results={results} right/>
+              ))}
+            </div>
           </div>
         </main>
       )}
@@ -736,36 +847,60 @@ const CSS = `
   border-radius:12px;padding:12px 20px;text-align:center;flex:none}
 .sb-pts{display:block;font-family:var(--num);font-weight:800;font-size:38px;color:var(--gold);line-height:1}
 .sb-lbl{font-size:11px;color:var(--ink-300);text-transform:uppercase;letter-spacing:.05em}
-.pred-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.pcard{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px}
-.pcard.played{border-color:rgba(244,201,93,.3)}
-.pcard.pending{opacity:.6;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:110px;text-align:center}
-.pcard-teams{display:flex;align-items:center;gap:10px}
-.vs{color:var(--ink-500);font-size:12px;font-weight:700}
-.pwait{margin:8px 0 0;font-size:12px;color:var(--ink-500)}
-.pcard-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
-.pscore{display:flex;align-items:center;gap:6px}
-.pscore i{color:var(--ink-500);font-style:normal}
-.sin{width:38px;height:40px;text-align:center;font-size:18px;font-weight:800;border-radius:8px;
-  background:var(--panel-2);border:1px solid var(--line);color:var(--ink-100);font-family:var(--num)}
-.sin:focus{outline:none;border-color:var(--gold)}
-.sin:disabled{opacity:.8}
-.phint{margin-top:10px;font-size:11px;color:var(--ink-500);text-align:center}
-.presult{margin-top:10px;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--ink-300)}
-.pbadge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px}
-.pbadge.win{background:rgba(40,180,99,.2);color:var(--mex)}
-.pbadge.lose{background:rgba(255,77,77,.16);color:var(--can)}
+
+/* ── Predictions bracket ── */
+.pred-bracket{display:flex;gap:16px;align-items:flex-start;overflow-x:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch}
+.pb-col{flex:none;width:240px;display:flex;flex-direction:column;gap:10px}
+.pb-center{flex:none;width:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;align-self:center;padding:20px 0;gap:6px}
+.pb-trophy{font-size:40px}
+.pb-final-label{font-family:var(--display);font-weight:700;font-size:13px;color:var(--gold)}
+.pb-final-venue{font-size:11px;color:var(--ink-500)}
+
+.pm-wrap{width:100%}
+.pm{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  transition:border-color .15s}
+.pm-done{border-color:rgba(244,201,93,.3)}
+.pm-hit{border-color:rgba(95,227,154,.45)}
+.pm-miss{border-color:rgba(255,77,77,.25)}
+.pm-tbd{opacity:.55}
+.pm-row{display:flex;align-items:center;gap:8px;padding:9px 12px;font-size:13px;font-weight:600;
+  color:var(--ink-300);border-bottom:1px solid var(--line)}
+.pm-row:last-of-type{border-bottom:none}
+.pm-winner{color:#5fe39a}
+.pm-loser{opacity:.5}
+.pm-predicted{color:var(--gold)}
+.pm-flag{font-style:normal;font-size:15px;flex:none}
+.pm-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pm-input{width:32px;height:30px;text-align:center;font-size:16px;font-weight:800;border-radius:6px;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink-100);font-family:var(--num);
+  flex:none}
+.pm-input:focus{outline:none;border-color:var(--gold)}
+.pm-input::placeholder{color:var(--ink-500)}
+.pm-score-final{font-family:var(--num);font-weight:800;font-size:16px;flex:none;min-width:18px;text-align:center}
+.pm-foot{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;
+  background:rgba(0,0,0,.15)}
+.pm-date{font-size:10px;color:var(--ink-500);letter-spacing:.02em}
+.pm-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.pm-badge.win{background:rgba(95,227,154,.18);color:#5fe39a}
+.pm-badge.miss{background:rgba(255,77,77,.14);color:var(--can)}
 
 .cup-foot{text-align:center;color:var(--ink-500);font-size:11px;padding:20px;border-top:1px solid var(--line);margin-top:10px}
 @media (min-width:1100px){
   .bcol{width:250px}
   .final-col{width:250px}
   .bracket-track{gap:56px}
-  .pred-grid{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
+  .pb-col{width:270px}
   .mast-main h1{font-size:48px}
 }
+@media (max-width:700px){
+  .pred-bracket{flex-direction:column}
+  .pb-col{width:100%}
+  .pb-center{flex-direction:row;width:100%;justify-content:flex-start;gap:12px;padding:8px 0}
+  .pb-trophy{font-size:28px}
+}
 @media (max-width:520px){
-  .scores,.pred-grid{grid-template-columns:1fr}
+  .scores{grid-template-columns:1fr}
   .masthead,.groups-grid,.bracket-wrap,.predict{padding-left:0;padding-right:0}
 }
 .owner-tab{color:#ff9d4d!important;font-weight:700}
