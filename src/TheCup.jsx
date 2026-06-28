@@ -129,7 +129,7 @@ function TeamLabel({ code, right }){
   return (
     <span className={`tl ${right?"right":""}`}>
       {!right && <em className="flag">{FLAG[code]}</em>}
-      <em className="tname" style={HOST[code]?{color:tone(code)}:{}}>{NAME[code]}</em>
+      <em className="tname">{NAME[code]}</em>
       {right && <em className="flag">{FLAG[code]}</em>}
     </span>
   );
@@ -157,7 +157,7 @@ function GroupCard({ letter, rows }){
               <div key={code} className={`grow ${q}`}>
                 <span className="pos">{i+1}</span>
                 <span className="team"><em className="flag">{FLAG[code]}</em>
-                  <em className="tname" style={HOST[code]?{color:tone(code)}:{}}>{NAME[code]}</em></span>
+                  <em className="tname">{NAME[code]}</em></span>
                 <span>{w}</span><span>{d}</span><span>{l}</span><span className="pts">{pts}</span>
               </div>
             );
@@ -289,19 +289,21 @@ export default function TheCup(){
         <main className="bracket-wrap">
           <p className="b-note">Round of 32 → Final, from the official bracket. Two ties (Spain, Switzerland) show <span className="seed">TBD</span> until today's group matches set their opponents.</p>
           <div className="bracket-scroll">
-            <div className="bcol">
-              <h4>Round of 32 · Left</h4>
-              {left.map(m=><BracketSlot key={m.id} m={m}/>)}
-            </div>
-            <div className="bcol final-col">
-              <div className="trophy">🏆</div><h4>The Final</h4>
-              <p className="final-place">MetLife Stadium</p>
-              <p className="final-date">July 19 · East Rutherford, NJ</p>
-              <p className="final-extra">First-ever halftime show</p>
-            </div>
-            <div className="bcol">
-              <h4>Round of 32 · Right</h4>
-              {right.map(m=><BracketSlot key={m.id} m={m}/>)}
+            <div className="bracket-track">
+              <div className="bcol">
+                <h4>Round of 32 · Left</h4>
+                {left.map(m=><BracketSlot key={m.id} m={m}/>)}
+              </div>
+              <div className="bcol final-col">
+                <div className="trophy">🏆</div><h4>The Final</h4>
+                <p className="final-place">MetLife Stadium</p>
+                <p className="final-date">July 19 · East Rutherford, NJ</p>
+                <p className="final-extra">First-ever halftime show</p>
+              </div>
+              <div className="bcol">
+                <h4>Round of 32 · Right</h4>
+                {right.map(m=><BracketSlot key={m.id} m={m}/>)}
+              </div>
             </div>
           </div>
         </main>
@@ -312,13 +314,20 @@ export default function TheCup(){
           <section className="score-block">
             <h3>Latest results</h3>
             {RESULTS.map((r,i)=>{
-              const [h,hs,a,as_,tag]=r; const hw=hs>as_, awn=as_>hs;
+              const [h,hs,a,as_,tag]=r;
+              const hw=hs>as_, awn=as_>hs, draw=hs===as_;
               return (
-                <div key={i} className="result">
+                <div key={i} className={`result ${draw?"is-draw":""}`}>
                   <span className="r-tag">{tag}</span>
-                  <span className={`r-side ${hw?"win":""}`}><em>{FLAG[h]}</em>{NAME[h]}</span>
-                  <span className="r-score">{hs}<i>–</i>{as_}</span>
-                  <span className={`r-side right ${awn?"win":""}`}>{NAME[a]}<em>{FLAG[a]}</em></span>
+                  <span className={`r-side ${hw?"win":draw?"":"lose"}`}>
+                    <em>{FLAG[h]}</em>{NAME[h]}{hw&&<b className="wtick">✓</b>}
+                  </span>
+                  <span className="r-score">
+                    <i className={hw?"won":""}>{hs}</i><u>–</u><i className={awn?"won":""}>{as_}</i>
+                  </span>
+                  <span className={`r-side right ${awn?"win":draw?"":"lose"}`}>
+                    {awn&&<b className="wtick">✓</b>}{NAME[a]}<em>{FLAG[a]}</em>
+                  </span>
                 </div>
               );
             })}
@@ -430,8 +439,9 @@ const CSS = `
 .b-note{color:var(--ink-300);font-size:13px;margin:0 0 16px;line-height:1.5}
 .seed{font-family:monospace;color:var(--ink-500);font-weight:700;font-size:12px}
 .b-note .seed{color:var(--gold)}
-.bracket-scroll{display:flex;gap:24px;overflow-x:auto;padding-bottom:14px;align-items:flex-start;justify-content:center;min-width:min-content}
-@media (max-width:900px){.bracket-scroll{justify-content:flex-start}}
+.bracket-scroll{overflow-x:auto;padding-bottom:14px;-webkit-overflow-scrolling:touch}
+.bracket-track{display:flex;gap:24px;align-items:flex-start;width:max-content;margin:0 auto}
+@media (max-width:900px){.bracket-track{margin:0}}
 .bcol{flex:none;width:210px;display:flex;flex-direction:column;gap:10px}
 .bcol h4{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-500);font-weight:700}
 .bmatch{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden;position:relative}
@@ -459,10 +469,18 @@ const CSS = `
 .r-side{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-300)}
 .r-side.right{justify-content:flex-end}
 .r-side em{font-style:normal;font-size:16px}
-.r-side.win{color:var(--ink-100)}
-.r-score{font-family:var(--num);font-weight:800;font-size:20px;display:flex;gap:5px;align-items:center}
-.r-score i{color:var(--ink-500);font-style:normal;font-size:14px}
+.r-side.win{color:#5fe39a;font-weight:700}
+.r-side.lose{color:var(--ink-500)}
+.wtick{font-size:11px;font-weight:800;color:#5fe39a;background:rgba(95,227,154,.14);
+  width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.r-score{font-family:var(--num);font-weight:800;font-size:20px;display:flex;gap:6px;align-items:center}
+.r-score i{font-style:normal;color:var(--ink-500);transition:color .15s}
+.r-score i.won{color:#5fe39a}
+.r-score u{color:var(--ink-500);text-decoration:none;font-size:14px}
 .r-score.next{font-size:12px;font-weight:700;color:var(--gold);font-family:var(--body)}
+.result.is-draw .r-score i{color:var(--ink-300)}
+.result.is-draw::after{content:"DRAW";position:absolute;top:-7px;right:11px;font-size:9px;letter-spacing:.06em;
+  background:var(--panel-2);color:var(--ink-500);padding:1px 6px;border-radius:4px;font-weight:700}
 
 .predict{padding:24px 0}
 .pred-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:20px}
@@ -497,7 +515,7 @@ const CSS = `
 @media (min-width:1100px){
   .bcol{width:250px}
   .final-col{width:250px}
-  .bracket-scroll{gap:56px}
+  .bracket-track{gap:56px}
   .pred-grid{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}
   .mast-main h1{font-size:48px}
 }
