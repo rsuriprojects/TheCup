@@ -24,9 +24,11 @@ const OWNER_KEY = "letmein"; // ← change this to your own password
 
 const STORE_KEY = "thecup.predictions.v1";
 const RESULTS_KEY = "thecup.results.v1";
+const GROUPS_KEY = "thecup.groups.v1";
 
 let _mem = {};
 let _memResults = {};
+let _memGroups = null;
 function makeStore(key, memRef){
   return {
     load(){
@@ -45,6 +47,7 @@ function makeStore(key, memRef){
 }
 const store = makeStore(STORE_KEY, { get value(){return _mem;}, set value(v){_mem=v;} });
 const resultsStore = makeStore(RESULTS_KEY, { get value(){return _memResults;}, set value(v){_memResults=v;} });
+const groupsStore = makeStore(GROUPS_KEY, { get value(){return _memGroups;}, set value(v){_memGroups=v;} });
 
 // ── reference data ───────────────────────────────────────────
 const FLAG = {
@@ -67,22 +70,71 @@ const NAME = {
 };
 const HOST = { MEX:"mex", CAN:"can", USA:"usa" };
 
-// Group standings — final group-stage data (all teams MP3), read from
-// official standings on Jun 27, 2026. Row: [code, W, D, L, GF, GA, Pts]
-const GROUPS = {
-  A:[["MEX",3,0,0,6,0,9],["RSA",1,1,1,2,3,4],["KOR",1,0,2,2,3,3],["CZE",0,1,2,2,6,1]],
-  B:[["SUI",2,1,0,7,3,7],["CAN",1,1,1,8,3,4],["BIH",1,1,1,5,6,4],["QAT",0,1,2,2,10,1]],
-  C:[["BRA",2,1,0,7,1,7],["MAR",2,1,0,6,3,7],["SCO",1,0,2,1,4,3],["HTI",0,0,3,2,8,0]],
-  D:[["USA",2,0,1,8,4,6],["AUS",1,1,1,2,2,4],["PAR",1,1,1,2,4,4],["TUR",1,0,2,3,5,3]],
-  E:[["GER",2,0,1,10,4,6],["CIV",2,0,1,4,2,6],["ECU",1,1,1,2,2,4],["CUW",0,1,2,1,9,1]],
-  F:[["NED",2,1,0,10,4,7],["JPN",1,2,0,7,3,5],["SWE",1,1,1,7,7,4],["TUN",0,0,3,2,12,0]],
-  G:[["BEL",1,2,0,6,2,5],["EGY",1,2,0,5,3,5],["IRN",0,3,0,3,3,3],["NZL",0,1,2,4,10,1]],
-  H:[["ESP",2,1,0,5,0,7],["CPV",0,3,0,2,2,3],["URU",0,2,1,3,4,2],["KSA",0,2,1,1,5,2]],
-  I:[["FRA",3,0,0,10,2,9],["NOR",2,0,1,8,7,6],["SEN",1,0,2,8,6,3],["IRQ",0,0,3,1,12,0]],
-  J:[["ARG",2,0,0,5,0,6],["AUT",1,0,1,3,3,3],["DZA",1,0,1,2,4,3],["JOR",0,0,2,2,5,0]],
-  K:[["COL",2,1,0,4,1,7],["POR",1,2,0,6,1,5],["COD",1,1,1,4,3,4],["UZB",0,0,3,2,11,0]],
-  L:[["ENG",2,1,0,6,2,7],["CRO",2,0,1,5,5,6],["GHA",1,1,1,2,2,4],["PAN",0,0,3,0,4,0]],
+// Group standings — baseline data (Jun 27, 2026). Row: [code, W, D, L, GF, GA, Pts].
+// The Owner tab can override these; edits save per-browser and re-sort live.
+// Group rosters in seed order (positions 1-4 from the official draw).
+const GROUP_ROSTER = {
+  A:["MEX","RSA","KOR","CZE"],
+  B:["SUI","CAN","BIH","QAT"],
+  C:["BRA","MAR","SCO","HTI"],
+  D:["USA","AUS","PAR","TUR"],
+  E:["GER","CIV","ECU","CUW"],
+  F:["NED","JPN","SWE","TUN"],
+  G:["BEL","EGY","IRN","NZL"],
+  H:["ESP","CPV","URU","KSA"],
+  I:["FRA","NOR","SEN","IRQ"],
+  J:["ARG","AUT","DZA","JOR"],
+  K:["COL","POR","COD","UZB"],
+  L:["ENG","CRO","GHA","PAN"],
 };
+
+// Round-robin pairing pattern (0-indexed seed positions).
+const RR_PATTERN = [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
+
+// All 72 group fixtures: { id, group, home, away }.
+const GROUP_FIXTURES = (()=>{
+  const out = [];
+  for(const [g, teams] of Object.entries(GROUP_ROSTER)){
+    RR_PATTERN.forEach(([i,j],n)=>{
+      out.push({ id:`G${g}${n+1}`, group:g, home:teams[i], away:teams[j] });
+    });
+  }
+  return out;
+})();
+
+// Baseline group scores — intentionally EMPTY. Reconstructing exact
+// per-match scorelines from standings alone isn't reliable, so group
+// standings start blank and you enter the real scores in the Owner
+// tab; each entry computes the table live. Key = fixture id, value
+// = {hs,as} (home score, away score).
+const GROUP_SCORES_BASE = {};
+
+// Compute standings for all groups from a scores map.
+// Returns { A:[[code,W,D,L,GF,GA,Pts],...sorted], ... }
+function computeGroups(scores){
+  const out = {};
+  for(const [g, teams] of Object.entries(GROUP_ROSTER)){
+    const tbl = {};
+    teams.forEach(t=>{ tbl[t]={w:0,d:0,l:0,gf:0,ga:0}; });
+    GROUP_FIXTURES.filter(f=>f.group===g).forEach(f=>{
+      const s = scores[f.id];
+      if(!s) return;
+      const {home,away}=f, hs=s.hs, as=s.as;
+      tbl[home].gf+=hs; tbl[home].ga+=as;
+      tbl[away].gf+=as; tbl[away].ga+=hs;
+      if(hs>as){ tbl[home].w++; tbl[away].l++; }
+      else if(as>hs){ tbl[away].w++; tbl[home].l++; }
+      else { tbl[home].d++; tbl[away].d++; }
+    });
+    const rows = teams.map(t=>{
+      const s=tbl[t];
+      return [t, s.w, s.d, s.l, s.gf, s.ga, s.w*3+s.d];
+    });
+    rows.sort((a,b)=> b[6]-a[6] || (b[4]-b[5])-(a[4]-a[5]) || b[4]-a[4]);
+    out[g]=rows;
+  }
+  return out;
+}
 
 const RESULTS = [
   ["COD",3,"UZB",1,"Group K"],["COL",0,"POR",0,"Group K"],["CRO",2,"GHA",1,"Group L"],
@@ -300,18 +352,100 @@ function OwnerRow({ m, result, setResult }){
   );
 }
 
-function OwnerPanel({ results, setResult }){
+// One group match: enter the score, autosaves on change.
+function FixtureRow({ fixture, score, setGroupScore }){
+  const { home, away } = fixture;
+  const [hs,setHs]=useState(score?.hs ?? "");
+  const [as,setAs]=useState(score?.as ?? "");
+  const commit=(h,a)=>{
+    if(h===""||a===""){ if(h===""&&a==="") setGroupScore(fixture.id,null); return; }
+    setGroupScore(fixture.id,{ hs:Math.max(0,parseInt(h,10)||0), as:Math.max(0,parseInt(a,10)||0) });
+  };
+  const clear=()=>{ setHs(""); setAs(""); setGroupScore(fixture.id,null); };
+  return (
+    <div className={`frow ${score?"saved":""}`}>
+      <span className="f-team">{FLAG[home]} {NAME[home]}</span>
+      <input className="oin" inputMode="numeric" value={hs}
+        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setHs(v);commit(v,as);}}
+        aria-label={`${NAME[home]} goals`}/>
+      <span className="odash">–</span>
+      <input className="oin" inputMode="numeric" value={as}
+        onChange={e=>{const v=e.target.value.replace(/\D/g,"").slice(0,2);setAs(v);commit(hs,v);}}
+        aria-label={`${NAME[away]} goals`}/>
+      <span className="f-team right">{NAME[away]} {FLAG[away]}</span>
+      <button className="obtn clear" onClick={clear} disabled={!score}>✕</button>
+    </div>
+  );
+}
+
+
+// Compact live standings preview for a group (read-only)
+function MiniTable({ rows }){
+  return (
+    <div className="mini">
+      {rows.map((r,i)=>{
+        const [code,w,d,l,gf,ga,pts]=r; const gd=gf-ga;
+        return (
+          <div key={code} className={`mini-row ${i<2?"q":""}`}>
+            <span className="mini-pos">{i+1}</span>
+            <span className="mini-team">{FLAG[code]} {NAME[code]}</span>
+            <span className="mini-rec">{w}-{d}-{l}</span>
+            <span className="mini-gd">{gd>0?`+${gd}`:gd}</span>
+            <span className="mini-pts">{pts}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OwnerPanel({ results, setResult, groups, groupScores, setGroupScore, resetGroups }){
+  const [section,setSection]=useState("knockout");
+  const [openGroup,setOpenGroup]=useState(null);
   return (
     <main className="owner">
       <div className="owner-head">
-        <h3>⚙ Owner · enter results</h3>
-        <p>Type a final score and hit <strong>Save</strong>. The bracket fills in the winner and predictions grade instantly. Only you see this tab (it needs the secret link). Scores save to this browser.</p>
+        <h3>⚙ Owner</h3>
+        <p>Update results without touching code. Only you see this tab (it needs the secret link). Everything saves to this browser.</p>
+        <div className="owner-switch">
+          <button className={section==="knockout"?"on":""} onClick={()=>setSection("knockout")}>Knockout scores</button>
+          <button className={section==="groups"?"on":""} onClick={()=>setSection("groups")}>Group matches</button>
+        </div>
       </div>
-      <div className="owner-list">
-        {R32.map(m=>(
-          <OwnerRow key={m.id} m={m} result={resultOf(m, results)} setResult={setResult}/>
-        ))}
-      </div>
+
+      {section==="knockout" && (
+        <div className="owner-list">
+          {R32.map(m=>(
+            <OwnerRow key={m.id} m={m} result={resultOf(m, results)} setResult={setResult}/>
+          ))}
+        </div>
+      )}
+
+      {section==="groups" && (
+        <div className="owner-groups">
+          <p className="og-hint">Enter each match score — standings compute automatically. Empty fields = not played yet. <button className="og-reset" onClick={resetGroups}>Reset to defaults</button></p>
+          {Object.keys(GROUP_ROSTER).map(g=>{
+            const open = openGroup===g;
+            return (
+              <div key={g} className="og-block">
+                <button className="og-toggle" onClick={()=>setOpenGroup(open?null:g)}>
+                  <span>Group {g}</span><span className="og-caret">{open?"▾":"▸"}</span>
+                </button>
+                {open && (
+                  <div className="og-body">
+                    <MiniTable rows={groups[g]}/>
+                    <div className="og-fixtures">
+                      {GROUP_FIXTURES.filter(f=>f.group===g).map(f=>(
+                        <FixtureRow key={f.id} fixture={f} score={groupScores[f.id]} setGroupScore={setGroupScore}/>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }
@@ -321,12 +455,23 @@ export default function TheCup(){
   const [tab,setTab]=useState("groups");
   const [picks,setPicks]=useState(()=>store.load());
   const [results,setResults]=useState(()=>resultsStore.load());
+  const [groupScores,setGroupScores]=useState(()=>({ ...GROUP_SCORES_BASE, ...(groupsStore.load()||{}) }));
   useEffect(()=>{ store.save(picks); },[picks]);
   useEffect(()=>{ resultsStore.save(results); },[results]);
+  useEffect(()=>{ groupsStore.save(groupScores); },[groupScores]);
+
+  const groups = useMemo(()=>computeGroups(groupScores),[groupScores]);
 
   // Owner mode unlocks when the URL has ?owner=OWNER_KEY
   const isOwner = typeof window!=="undefined" &&
     new URLSearchParams(window.location.search).get("owner")===OWNER_KEY;
+
+  const setGroupScore=(fixtureId,score)=>setGroupScores(prev=>{
+    const next={ ...prev };
+    if(score===null) delete next[fixtureId]; else next[fixtureId]=score;
+    return next;
+  });
+  const resetGroups=()=>setGroupScores({ ...GROUP_SCORES_BASE });
 
   const onPick=(id,p)=>setPicks(prev=>({ ...prev, [id]:p }));
   const setResult=(id,r)=>setResults(prev=>{
@@ -368,7 +513,7 @@ export default function TheCup(){
 
       {tab==="groups" && (
         <main className="groups-grid">
-          {Object.entries(GROUPS).map(([l,rows])=><GroupCard key={l} letter={l} rows={rows}/>)}
+          {Object.entries(groups).map(([l,rows])=><GroupCard key={l} letter={l} rows={rows}/>)}
         </main>
       )}
 
@@ -455,7 +600,8 @@ export default function TheCup(){
       )}
 
       {tab==="owner" && isOwner && (
-        <OwnerPanel results={results} setResult={setResult}/>
+        <OwnerPanel results={results} setResult={setResult}
+          groups={groups} groupScores={groupScores} setGroupScore={setGroupScore} resetGroups={resetGroups}/>
       )}
 
       <footer className="cup-foot">
@@ -646,10 +792,43 @@ const CSS = `
 .obtn.save:hover{filter:brightness(1.08)}
 .obtn.clear{background:none;color:var(--ink-300)}
 .obtn.clear:disabled{opacity:.3;cursor:default}
+.owner-switch{display:flex;gap:8px;margin-top:4px}
+.owner-switch button{background:var(--panel);border:1px solid var(--line);color:var(--ink-300);
+  font-size:13px;font-weight:700;padding:8px 14px;border-radius:20px;cursor:pointer}
+.owner-switch button.on{background:#ff9d4d;color:#2a1605;border-color:#ff9d4d}
+.owner-groups{margin-top:6px}
+.og-hint{font-size:13px;color:var(--ink-300);margin:0 0 16px}
+.og-hint b{color:var(--ink-100)}
+.og-reset{background:none;border:1px solid var(--line);color:var(--ink-300);font-size:11px;
+  padding:4px 10px;border-radius:14px;cursor:pointer;margin-left:8px;font-weight:600}
+.og-reset:hover{border-color:var(--can);color:var(--can)}
+.og-block{margin-bottom:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.og-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;
+  background:var(--panel);border:none;color:var(--ink-100);font-family:var(--display);font-weight:600;
+  font-size:15px;padding:12px 16px;cursor:pointer}
+.og-toggle:hover{background:var(--panel-2)}
+.og-caret{color:var(--ink-500)}
+.og-body{padding:12px 16px;background:rgba(0,0,0,.15)}
+.mini{margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.mini-row{display:grid;grid-template-columns:18px 1fr auto 36px 26px;gap:8px;align-items:center;
+  font-size:12px;padding:3px 4px;color:var(--ink-300)}
+.mini-row.q{color:var(--ink-100)}
+.mini-pos{color:var(--ink-500);font-weight:700}
+.mini-row.q .mini-pos{color:var(--mex)}
+.mini-rec{font-variant-numeric:tabular-nums;color:var(--ink-500)}
+.mini-gd{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-500);font-size:11px}
+.mini-pts{text-align:right;font-weight:800;color:var(--ink-100)}
+.og-fixtures{display:flex;flex-direction:column;gap:6px}
+.frow{display:grid;grid-template-columns:1fr 40px 12px 40px 1fr auto;gap:8px;align-items:center}
+.frow.saved .f-team{color:var(--ink-100)}
+.f-team{font-size:12px;font-weight:600;color:var(--ink-300)}
+.f-team.right{text-align:right}
 @media (max-width:640px){
   .orow{grid-template-columns:1fr 40px 10px 40px 1fr;row-gap:8px}
   .orow .obtn{grid-column:span 2}
   .obtn.clear{grid-column:span 3}
+  .frow{grid-template-columns:1fr 36px 10px 36px 1fr auto;gap:5px}
+  .f-team{font-size:11px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `;
