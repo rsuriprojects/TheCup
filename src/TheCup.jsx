@@ -590,22 +590,76 @@ export default function TheCup(){
 
       {tab==="bracket" && (
         <main className="bracket-wrap">
-          <p className="b-note">Round of 32 → Final, from the official bracket. Two ties (Spain, Switzerland) show <span className="seed">TBD</span> until today's group matches set their opponents.</p>
+          <p className="b-note">Scroll sideways to see the full bracket. Gold border = teams confirmed.</p>
           <div className="bracket-scroll">
             <div className="bracket-track">
-              <div className="bcol">
-                <h4>Round of 32 · Left</h4>
-                {left.map(m=><BracketSlot key={m.id} m={m} results={results}/>)}
+              {/* Left half: R32 → R16 → QF → SF */}
+              <div className="bside">
+                <div className="bcol">
+                  <h4>Round of 32</h4>
+                  {R32.filter(m=>m.side==="L").map(m=><BracketSlot key={m.id} m={m} results={results}/>)}
+                </div>
+                <div className="bcol">
+                  <h4>Round of 16</h4>
+                  {["R16-1","R16-2","R16-3","R16-4"].map(id=>{
+                    const bm=BRACKET_MATCHES[id];
+                    const a=resolveTeam(id,"home",{},results), b=resolveTeam(id,"away",{},results);
+                    return <BracketSlot key={id} m={{id,home:a||undefined,away:b||undefined,a:bm.feeds[0],b:bm.feeds[1],kickoff:bm.date}} results={results}/>;
+                  })}
+                </div>
+                <div className="bcol">
+                  <h4>Quarter-finals</h4>
+                  {["QF1","QF2"].map(id=>{
+                    const bm=BRACKET_MATCHES[id];
+                    const a=resolveTeam(id,"home",{},results), b=resolveTeam(id,"away",{},results);
+                    return <BracketSlot key={id} m={{id,home:a||undefined,away:b||undefined,a:bm.feeds[0],b:bm.feeds[1],kickoff:bm.date}} results={results}/>;
+                  })}
+                </div>
+                <div className="bcol">
+                  <h4>Semi-finals</h4>
+                  {["SF1"].map(id=>{
+                    const bm=BRACKET_MATCHES[id];
+                    const a=resolveTeam(id,"home",{},results), b=resolveTeam(id,"away",{},results);
+                    return <BracketSlot key={id} m={{id,home:a||undefined,away:b||undefined,a:bm.feeds[0],b:bm.feeds[1],kickoff:bm.date}} results={results}/>;
+                  })}
+                </div>
               </div>
+              {/* Center: Final */}
               <div className="bcol final-col">
                 <div className="trophy">🏆</div><h4>The Final</h4>
                 <p className="final-place">MetLife Stadium</p>
                 <p className="final-date">July 19 · East Rutherford, NJ</p>
-                <p className="final-extra">First-ever halftime show</p>
               </div>
-              <div className="bcol">
-                <h4>Round of 32 · Right</h4>
-                {right.map(m=><BracketSlot key={m.id} m={m} results={results}/>)}
+              {/* Right half: SF → QF → R16 → R32 */}
+              <div className="bside bside-r">
+                <div className="bcol">
+                  <h4>Semi-finals</h4>
+                  {["SF2"].map(id=>{
+                    const bm=BRACKET_MATCHES[id];
+                    const a=resolveTeam(id,"home",{},results), b=resolveTeam(id,"away",{},results);
+                    return <BracketSlot key={id} m={{id,home:a||undefined,away:b||undefined,a:bm.feeds[0],b:bm.feeds[1],kickoff:bm.date}} results={results}/>;
+                  })}
+                </div>
+                <div className="bcol">
+                  <h4>Quarter-finals</h4>
+                  {["QF3","QF4"].map(id=>{
+                    const bm=BRACKET_MATCHES[id];
+                    const a=resolveTeam(id,"home",{},results), b=resolveTeam(id,"away",{},results);
+                    return <BracketSlot key={id} m={{id,home:a||undefined,away:b||undefined,a:bm.feeds[0],b:bm.feeds[1],kickoff:bm.date}} results={results}/>;
+                  })}
+                </div>
+                <div className="bcol">
+                  <h4>Round of 16</h4>
+                  {["R16-5","R16-6","R16-7","R16-8"].map(id=>{
+                    const bm=BRACKET_MATCHES[id];
+                    const a=resolveTeam(id,"home",{},results), b=resolveTeam(id,"away",{},results);
+                    return <BracketSlot key={id} m={{id,home:a||undefined,away:b||undefined,a:bm.feeds[0],b:bm.feeds[1],kickoff:bm.date}} results={results}/>;
+                  })}
+                </div>
+                <div className="bcol">
+                  <h4>Round of 32</h4>
+                  {R32.filter(m=>m.side==="R").map(m=><BracketSlot key={m.id} m={m} results={results}/>)}
+                </div>
               </div>
             </div>
           </div>
@@ -664,18 +718,66 @@ export default function TheCup(){
               <span className="sb-lbl">pts · {totals.graded} graded</span>
             </div>
           </div>
-          <div className="pb-scroll">
-            {ROUNDS.map(({label,ids})=>(
-              <div key={label} className="pb-round">
-                <h4 className="pb-round-label">{label}</h4>
-                <div className="pb-matches">
-                  {ids.map(id=>(
-                    <BracketCell key={id} matchId={id}
-                      allPicks={picks} onPick={onPick} allResults={results}/>
+          <div className="bracket-scroll" style={{marginTop:"16px"}}>
+            <div className="bracket-track">
+              {/* Left half */}
+              <div className="bside">
+                <div className="bcol">
+                  <h4>Round of 32</h4>
+                  {["M73","M74","M75","M76","M77","M78","M79","M80"].map(id=>(
+                    <BracketCell key={id} matchId={id} allPicks={picks} onPick={onPick} allResults={results}/>
+                  ))}
+                </div>
+                <div className="bcol">
+                  <h4>Round of 16</h4>
+                  {["R16-1","R16-2","R16-3","R16-4"].map(id=>(
+                    <BracketCell key={id} matchId={id} allPicks={picks} onPick={onPick} allResults={results}/>
+                  ))}
+                </div>
+                <div className="bcol">
+                  <h4>Quarter-finals</h4>
+                  {["QF1","QF2"].map(id=>(
+                    <BracketCell key={id} matchId={id} allPicks={picks} onPick={onPick} allResults={results}/>
+                  ))}
+                </div>
+                <div className="bcol">
+                  <h4>Semi-finals</h4>
+                  <BracketCell matchId="SF1" allPicks={picks} onPick={onPick} allResults={results}/>
+                </div>
+              </div>
+              {/* Center */}
+              <div className="bcol final-col">
+                <div className="trophy">🏆</div>
+                <h4>Final</h4>
+                <p className="final-place">Jul 19</p>
+                <BracketCell matchId="FINAL" allPicks={picks} onPick={onPick} allResults={results}/>
+              </div>
+              {/* Right half */}
+              <div className="bside bside-r">
+                <div className="bcol">
+                  <h4>Semi-finals</h4>
+                  <BracketCell matchId="SF2" allPicks={picks} onPick={onPick} allResults={results}/>
+                </div>
+                <div className="bcol">
+                  <h4>Quarter-finals</h4>
+                  {["QF3","QF4"].map(id=>(
+                    <BracketCell key={id} matchId={id} allPicks={picks} onPick={onPick} allResults={results}/>
+                  ))}
+                </div>
+                <div className="bcol">
+                  <h4>Round of 16</h4>
+                  {["R16-5","R16-6","R16-7","R16-8"].map(id=>(
+                    <BracketCell key={id} matchId={id} allPicks={picks} onPick={onPick} allResults={results}/>
+                  ))}
+                </div>
+                <div className="bcol">
+                  <h4>Round of 32</h4>
+                  {["M81","M82","M83","M84","M85","M86","M87","M88"].map(id=>(
+                    <BracketCell key={id} matchId={id} allPicks={picks} onPick={onPick} allResults={results}/>
                   ))}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </main>
       )}
@@ -817,13 +919,9 @@ const CSS = `
 .sb-pts{display:block;font-family:var(--num);font-weight:800;font-size:38px;color:var(--gold);line-height:1}
 .sb-lbl{font-size:11px;color:var(--ink-300);text-transform:uppercase;letter-spacing:.05em}
 
-/* ── Predictions progressive bracket ── */
-.pb-scroll{display:flex;gap:20px;overflow-x:auto;padding-bottom:16px;-webkit-overflow-scrolling:touch;align-items:flex-start}
-.pb-round{flex:none;width:220px;display:flex;flex-direction:column;gap:8px}
-.pb-round-label{font-family:var(--display);font-size:11px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.08em;color:var(--ink-500);margin:0 0 4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
-.pb-matches{display:flex;flex-direction:column;gap:10px}
-
+.bside{display:flex;gap:24px;align-items:flex-start}
+.bside-r{flex-direction:row-reverse}
+/* ── Predictions bracket ── */
 .pm{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:border-color .15s}
 .pm-done{border-color:rgba(244,201,93,.3)}
 .pm-hit{border-color:rgba(95,227,154,.45)!important}
