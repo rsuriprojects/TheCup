@@ -14,23 +14,37 @@ import React, { useState, useMemo, useEffect } from "react";
 //  functions in `store` for API calls; nothing else changes.
 //
 const USE_LOCAL_STORAGE = true; // ← set true on Vercel
+
+// ░░ OWNER MODE ░░
+// Visit your site with ?owner=KEY to unlock the score-entry panel,
+// e.g.  https://your-site.vercel.app/?owner=letmein
+// Change OWNER_KEY to your own secret. Entered scores save to this
+// browser and instantly fill the bracket + grade predictions.
+const OWNER_KEY = "letmein"; // ← change this to your own password
+
 const STORE_KEY = "thecup.predictions.v1";
+const RESULTS_KEY = "thecup.results.v1";
 
 let _mem = {};
-const store = {
-  load() {
-    if (USE_LOCAL_STORAGE && typeof window !== "undefined") {
-      try { return JSON.parse(window.localStorage.getItem(STORE_KEY)) || {}; }
-      catch { return {}; }
-    }
-    return _mem;
-  },
-  save(data) {
-    if (USE_LOCAL_STORAGE && typeof window !== "undefined") {
-      try { window.localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch {}
-    } else { _mem = data; }
-  },
-};
+let _memResults = {};
+function makeStore(key, memRef){
+  return {
+    load(){
+      if (USE_LOCAL_STORAGE && typeof window !== "undefined") {
+        try { return JSON.parse(window.localStorage.getItem(key)) || {}; }
+        catch { return {}; }
+      }
+      return memRef.value;
+    },
+    save(data){
+      if (USE_LOCAL_STORAGE && typeof window !== "undefined") {
+        try { window.localStorage.setItem(key, JSON.stringify(data)); } catch {}
+      } else { memRef.value = data; }
+    },
+  };
+}
+const store = makeStore(STORE_KEY, { get value(){return _mem;}, set value(v){_mem=v;} });
+const resultsStore = makeStore(RESULTS_KEY, { get value(){return _memResults;}, set value(v){_memResults=v;} });
 
 // ── reference data ───────────────────────────────────────────
 const FLAG = {
@@ -53,19 +67,21 @@ const NAME = {
 };
 const HOST = { MEX:"mex", CAN:"can", USA:"usa" };
 
+// Group standings — final group-stage data (all teams MP3), read from
+// official standings on Jun 27, 2026. Row: [code, W, D, L, GF, GA, Pts]
 const GROUPS = {
-  A:[["MEX",3,0,0,9],["RSA",1,1,1,4],["KOR",1,0,2,3],["CZE",0,1,2,1]],
-  B:[["SUI",2,1,0,7],["CAN",1,1,1,4],["BIH",1,1,1,4],["QAT",0,1,2,1]],
-  C:[["BRA",2,1,0,7],["MAR",2,1,0,7],["SCO",1,0,2,3],["HTI",0,0,3,0]],
-  D:[["USA",2,0,1,6],["AUS",1,1,1,4],["PAR",1,1,1,4],["TUR",1,0,2,3]],
-  E:[["GER",2,0,1,6],["CIV",2,0,1,6],["ECU",1,1,1,4],["CUW",0,1,2,1]],
-  F:[["NED",2,1,0,7],["JPN",1,2,0,5],["SWE",1,1,1,4],["TUN",0,0,3,0]],
-  G:[["BEL",1,2,0,5],["EGY",1,2,0,5],["IRN",0,3,0,3],["NZL",0,1,2,1]],
-  H:[["ESP",2,1,0,7],["CPV",0,3,0,3],["URU",0,2,1,2],["KSA",0,2,1,2]],
-  I:[["FRA",3,0,0,9],["NOR",2,0,1,6],["SEN",1,0,2,3],["IRQ",0,0,3,0]],
-  J:[["ARG",2,0,0,6],["AUT",1,0,1,3],["DZA",1,0,1,3],["JOR",0,0,2,0]],
-  K:[["COL",2,1,0,7],["POR",1,2,0,5],["COD",1,1,1,4],["UZB",0,0,3,0]],
-  L:[["ENG",2,1,0,7],["CRO",2,0,1,6],["GHA",1,1,1,4],["PAN",0,0,3,0]],
+  A:[["MEX",3,0,0,6,0,9],["RSA",1,1,1,2,3,4],["KOR",1,0,2,2,3,3],["CZE",0,1,2,2,6,1]],
+  B:[["SUI",2,1,0,7,3,7],["CAN",1,1,1,8,3,4],["BIH",1,1,1,5,6,4],["QAT",0,1,2,2,10,1]],
+  C:[["BRA",2,1,0,7,1,7],["MAR",2,1,0,6,3,7],["SCO",1,0,2,1,4,3],["HTI",0,0,3,2,8,0]],
+  D:[["USA",2,0,1,8,4,6],["AUS",1,1,1,2,2,4],["PAR",1,1,1,2,4,4],["TUR",1,0,2,3,5,3]],
+  E:[["GER",2,0,1,10,4,6],["CIV",2,0,1,4,2,6],["ECU",1,1,1,2,2,4],["CUW",0,1,2,1,9,1]],
+  F:[["NED",2,1,0,10,4,7],["JPN",1,2,0,7,3,5],["SWE",1,1,1,7,7,4],["TUN",0,0,3,2,12,0]],
+  G:[["BEL",1,2,0,6,2,5],["EGY",1,2,0,5,3,5],["IRN",0,3,0,3,3,3],["NZL",0,1,2,4,10,1]],
+  H:[["ESP",2,1,0,5,0,7],["CPV",0,3,0,2,2,3],["URU",0,2,1,3,4,2],["KSA",0,2,1,1,5,2]],
+  I:[["FRA",3,0,0,10,2,9],["NOR",2,0,1,8,7,6],["SEN",1,0,2,8,6,3],["IRQ",0,0,3,1,12,0]],
+  J:[["ARG",2,0,0,5,0,6],["AUT",1,0,1,3,3,3],["DZA",1,0,1,2,4,3],["JOR",0,0,2,2,5,0]],
+  K:[["COL",2,1,0,4,1,7],["POR",1,2,0,6,1,5],["COD",1,1,1,4,3,4],["UZB",0,0,3,2,11,0]],
+  L:[["ENG",2,1,0,6,2,7],["CRO",2,0,1,5,5,6],["GHA",1,1,1,2,2,4],["PAN",0,0,3,0,4,0]],
 };
 
 const RESULTS = [
@@ -108,7 +124,7 @@ const R32 = [
 ];
 
 const teamsOf = (m)=>({ a:m.home||null, b:m.away||null, ready:!!(m.home&&m.away) });
-const resultOf = (m)=> m.result || null;
+const resultOf = (m, results)=> (results && results[m.id]) || m.result || null;
 
 // ── scoring ──────────────────────────────────────────────────
 const PTS_WINNER = 3, PTS_EXACT_BONUS = 2;
@@ -149,16 +165,19 @@ function GroupCard({ letter, rows }){
       </div>
       {face==="table" ? (
         <div className="gtable">
-          <div className="grow ghead"><span/><span>team</span><span>W</span><span>D</span><span>L</span><span>Pts</span></div>
+          <div className="grow ghead"><span/><span>team</span><span>W</span><span>D</span><span>L</span><span>GD</span><span>Pts</span></div>
           {rows.map((r,i)=>{
-            const [code,w,d,l,pts]=r;
+            const [code,w,d,l,gf,ga,pts]=r;
+            const gd=gf-ga;
             const q = i<2?"qual":i<3?"maybe":"out";
             return (
               <div key={code} className={`grow ${q}`}>
                 <span className="pos">{i+1}</span>
                 <span className="team"><em className="flag">{FLAG[code]}</em>
                   <em className="tname">{NAME[code]}</em></span>
-                <span>{w}</span><span>{d}</span><span>{l}</span><span className="pts">{pts}</span>
+                <span>{w}</span><span>{d}</span><span>{l}</span>
+                <span className="gd">{gd>0?`+${gd}`:gd}</span>
+                <span className="pts">{pts}</span>
               </div>
             );
           })}
@@ -175,21 +194,30 @@ function GroupCard({ letter, rows }){
 }
 
 // ── Bracket ──────────────────────────────────────────────────
-function BracketSlot({ m }){
+function BracketSlot({ m, results }){
   const { a, b, ready } = teamsOf(m);
+  const result = resultOf(m, results);
+  const aWin = result && result.hs>result.as;
+  const bWin = result && result.as>result.hs;
   return (
-    <div className={`bmatch ${ready?"ready":""}`}>
-      <div className="bteam">{a ? <TeamLabel code={a}/> : <Seed s={m.a}/>}</div>
-      <div className="bteam">{b ? <TeamLabel code={b}/> : <Seed s={m.b}/>}</div>
-      {m.kickoff && <div className="bkick">{m.kickoff}</div>}
+    <div className={`bmatch ${ready?"ready":""} ${result?"done":""}`}>
+      <div className={`bteam ${aWin?"adv":result?"elim":""}`}>
+        {a ? <TeamLabel code={a}/> : <Seed s={m.a}/>}
+        {result && <span className="bscore">{result.hs}</span>}
+      </div>
+      <div className={`bteam ${bWin?"adv":result?"elim":""}`}>
+        {b ? <TeamLabel code={b}/> : <Seed s={m.b}/>}
+        {result && <span className="bscore">{result.as}</span>}
+      </div>
+      {!result && m.kickoff && <div className="bkick">{m.kickoff}</div>}
     </div>
   );
 }
 
 // ── Prediction card ──────────────────────────────────────────
-function PredictionCard({ m, pick, onPick }){
+function PredictionCard({ m, pick, onPick, results }){
   const { a, b, ready } = teamsOf(m);
-  const result = resultOf(m);
+  const result = resultOf(m, results);
   const grade = gradePick(pick, result);
   const [ha,setHa]=useState(pick?.hs ?? "");
   const [aw,setAw]=useState(pick?.as ?? "");
@@ -241,23 +269,81 @@ function PredictionCard({ m, pick, onPick }){
   );
 }
 
+// ── Owner panel (score entry) ────────────────────────────────
+function OwnerRow({ m, result, setResult }){
+  const { a, b, ready } = teamsOf(m);
+  const [hs,setHs]=useState(result?.hs ?? "");
+  const [as,setAs]=useState(result?.as ?? "");
+  if(!ready) return (
+    <div className="orow pending">
+      <span className="oteams">{a?NAME[a]:m.a} vs {b?NAME[b]:m.b}</span>
+      <span className="onote">waiting on teams</span>
+    </div>
+  );
+  const save=()=>{
+    if(hs===""||as==="") return;
+    setResult(m.id,{ hs:Math.max(0,parseInt(hs,10)||0), as:Math.max(0,parseInt(as,10)||0) });
+  };
+  const clear=()=>{ setHs(""); setAs(""); setResult(m.id,null); };
+  return (
+    <div className={`orow ${result?"saved":""}`}>
+      <span className="oteam">{FLAG[a]} {NAME[a]}</span>
+      <input className="oin" inputMode="numeric" value={hs}
+        onChange={e=>setHs(e.target.value.replace(/\D/g,"").slice(0,2))} aria-label={`${NAME[a]} goals`}/>
+      <span className="odash">–</span>
+      <input className="oin" inputMode="numeric" value={as}
+        onChange={e=>setAs(e.target.value.replace(/\D/g,"").slice(0,2))} aria-label={`${NAME[b]} goals`}/>
+      <span className="oteam right">{NAME[b]} {FLAG[b]}</span>
+      <button className="obtn save" onClick={save}>Save</button>
+      <button className="obtn clear" onClick={clear} disabled={!result}>Clear</button>
+    </div>
+  );
+}
+
+function OwnerPanel({ results, setResult }){
+  return (
+    <main className="owner">
+      <div className="owner-head">
+        <h3>⚙ Owner · enter results</h3>
+        <p>Type a final score and hit <strong>Save</strong>. The bracket fills in the winner and predictions grade instantly. Only you see this tab (it needs the secret link). Scores save to this browser.</p>
+      </div>
+      <div className="owner-list">
+        {R32.map(m=>(
+          <OwnerRow key={m.id} m={m} result={resultOf(m, results)} setResult={setResult}/>
+        ))}
+      </div>
+    </main>
+  );
+}
+
 // ── Root ─────────────────────────────────────────────────────
 export default function TheCup(){
   const [tab,setTab]=useState("groups");
   const [picks,setPicks]=useState(()=>store.load());
+  const [results,setResults]=useState(()=>resultsStore.load());
   useEffect(()=>{ store.save(picks); },[picks]);
+  useEffect(()=>{ resultsStore.save(results); },[results]);
+
+  // Owner mode unlocks when the URL has ?owner=OWNER_KEY
+  const isOwner = typeof window!=="undefined" &&
+    new URLSearchParams(window.location.search).get("owner")===OWNER_KEY;
 
   const onPick=(id,p)=>setPicks(prev=>({ ...prev, [id]:p }));
+  const setResult=(id,r)=>setResults(prev=>{
+    const next={ ...prev };
+    if(r===null) delete next[id]; else next[id]=r;
+    return next;
+  });
 
   const totals=useMemo(()=>{
     let pts=0, graded=0;
     for(const m of R32){
-      const r=resultOf(m); if(!r) continue;
+      const r=resultOf(m, results); if(!r) continue;
       const g=gradePick(picks[m.id], r);
       if(g){ pts+=g.pts; graded++; }
     }
     return { pts, graded };
-  },[picks]);
+  },[picks, results]);
 
   const left=R32.filter(m=>m.side==="L"), right=R32.filter(m=>m.side==="R");
 
@@ -276,6 +362,7 @@ export default function TheCup(){
           <button className={tab==="bracket"?"on":""} onClick={()=>setTab("bracket")}>Bracket</button>
           <button className={tab==="scores"?"on":""} onClick={()=>setTab("scores")}>Scores</button>
           <button className={`pred-tab ${tab==="predict"?"on":""}`} onClick={()=>setTab("predict")}>Predictions</button>
+          {isOwner && <button className={`owner-tab ${tab==="owner"?"on":""}`} onClick={()=>setTab("owner")}>⚙ Owner</button>}
         </nav>
       </header>
 
@@ -292,7 +379,7 @@ export default function TheCup(){
             <div className="bracket-track">
               <div className="bcol">
                 <h4>Round of 32 · Left</h4>
-                {left.map(m=><BracketSlot key={m.id} m={m}/>)}
+                {left.map(m=><BracketSlot key={m.id} m={m} results={results}/>)}
               </div>
               <div className="bcol final-col">
                 <div className="trophy">🏆</div><h4>The Final</h4>
@@ -302,7 +389,7 @@ export default function TheCup(){
               </div>
               <div className="bcol">
                 <h4>Round of 32 · Right</h4>
-                {right.map(m=><BracketSlot key={m.id} m={m}/>)}
+                {right.map(m=><BracketSlot key={m.id} m={m} results={results}/>)}
               </div>
             </div>
           </div>
@@ -362,9 +449,13 @@ export default function TheCup(){
             </div>
           </div>
           <div className="pred-grid">
-            {R32.map(m=><PredictionCard key={m.id} m={m} pick={picks[m.id]} onPick={onPick}/>)}
+            {R32.map(m=><PredictionCard key={m.id} m={m} pick={picks[m.id]} onPick={onPick} results={results}/>)}
           </div>
         </main>
+      )}
+
+      {tab==="owner" && isOwner && (
+        <OwnerPanel results={results} setResult={setResult}/>
       )}
 
       <footer className="cup-foot">
@@ -414,12 +505,13 @@ const CSS = `
 .flip{background:none;border:1px solid var(--line);color:var(--ink-300);font-size:11px;padding:5px 9px;border-radius:20px;cursor:pointer;font-weight:600}
 .flip:hover{border-color:var(--ink-300);color:var(--ink-100)}
 .gtable{display:flex;flex-direction:column;gap:1px}
-.grow{display:grid;grid-template-columns:18px 1fr 18px 18px 18px 26px;align-items:center;gap:6px;padding:6px 4px;font-size:13px;border-radius:6px}
+.grow{display:grid;grid-template-columns:16px 1fr 16px 16px 16px 30px 26px;align-items:center;gap:5px;padding:6px 4px;font-size:13px;border-radius:6px}
 .grow.ghead{color:var(--ink-500);font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding:2px 4px}
 .grow.ghead span:nth-child(n+3){text-align:center}
 .grow span:nth-child(n+3){text-align:center;color:var(--ink-300)}
 .grow .pos{color:var(--ink-500);font-weight:700;text-align:center}
 .grow .pts{color:var(--ink-100);font-weight:800}
+.grow .gd{color:var(--ink-500);font-size:12px;font-variant-numeric:tabular-nums}
 .team{display:flex;align-items:center;gap:7px;min-width:0}
 .flag{font-style:normal;font-size:15px;flex:none}
 .tname{font-style:normal;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -446,7 +538,14 @@ const CSS = `
 .bcol h4{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-500);font-weight:700}
 .bmatch{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden;position:relative}
 .bmatch.ready{border-color:var(--gold)}
-.bteam{padding:9px 11px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.bteam{padding:9px 11px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;justify-content:space-between}
+.bteam .tl,.bteam .seed{flex:1;min-width:0}
+.bscore{font-family:var(--num);font-weight:800;font-size:15px;color:var(--ink-300);flex:none}
+.bteam.adv{color:#5fe39a}
+.bteam.adv .tname{color:#5fe39a}
+.bteam.adv .bscore{color:#5fe39a}
+.bteam.elim{opacity:.5}
+.bmatch.done{border-color:rgba(95,227,154,.4)}
 .bteam:first-child{border-bottom:1px solid var(--line)}
 .bkick{font-size:10px;color:var(--gold);padding:3px 11px;background:rgba(244,201,93,.08);text-align:right}
 .tl{display:flex;align-items:center;gap:7px;min-width:0}
@@ -522,6 +621,35 @@ const CSS = `
 @media (max-width:520px){
   .scores,.pred-grid{grid-template-columns:1fr}
   .masthead,.groups-grid,.bracket-wrap,.predict{padding-left:0;padding-right:0}
+}
+.owner-tab{color:#ff9d4d!important;font-weight:700}
+.owner-tab.on{color:#ffb877!important}
+.owner{padding:24px 0}
+.owner-head h3{font-family:var(--display);font-weight:600;font-size:19px;margin:0 0 6px}
+.owner-head p{color:var(--ink-300);font-size:13px;max-width:560px;line-height:1.5;margin:0 0 20px}
+.owner-head strong{color:#ff9d4d}
+.owner-list{display:flex;flex-direction:column;gap:8px}
+.orow{display:grid;grid-template-columns:1fr 44px 14px 44px 1fr auto auto;gap:8px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.orow.saved{border-color:rgba(95,227,154,.4)}
+.orow.pending{grid-template-columns:1fr auto;opacity:.55}
+.oteam{font-size:13px;font-weight:600;color:var(--ink-100)}
+.oteam.right{text-align:right}
+.oteams{font-size:13px;color:var(--ink-300)}
+.onote{font-size:11px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.05em}
+.oin{width:44px;height:38px;text-align:center;font-size:17px;font-weight:800;border-radius:8px;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink-100);font-family:var(--num)}
+.oin:focus{outline:none;border-color:var(--gold)}
+.odash{color:var(--ink-500);text-align:center}
+.obtn{font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;border:1px solid var(--line);cursor:pointer}
+.obtn.save{background:#5fe39a;color:#06281a;border-color:#5fe39a}
+.obtn.save:hover{filter:brightness(1.08)}
+.obtn.clear{background:none;color:var(--ink-300)}
+.obtn.clear:disabled{opacity:.3;cursor:default}
+@media (max-width:640px){
+  .orow{grid-template-columns:1fr 40px 10px 40px 1fr;row-gap:8px}
+  .orow .obtn{grid-column:span 2}
+  .obtn.clear{grid-column:span 3}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 `;
