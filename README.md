@@ -42,3 +42,21 @@ Predictions are saved in each visitor's browser via `localStorage`
 (`USE_LOCAL_STORAGE = true` at the top of `TheCup.jsx`). They persist per device,
 with no login. To move to a shared, cross-device leaderboard later, replace the
 two functions in the `store` object with calls to your own API.
+
+## Owner mode — entering scores
+
+You don't have to edit code to record knockout results. Open your site with a
+secret link:
+
+```
+https://your-site.vercel.app/?owner=letmein
+```
+
+That reveals an **⚙ Owner** tab where you type each final score and hit **Save** —
+the bracket fills in the winner and predictions grade instantly. Without the
+`?owner=` link, visitors never see this tab.
+
+**Change the password:** edit `OWNER_KEY` near the top of `TheCup.jsx` (it ships
+as `"letmein"`). Note this is light gatekeeping, not real security — it just keeps
+the panel hidden from normal visitors. Scores you enter save to the browser
+you entered them in.
